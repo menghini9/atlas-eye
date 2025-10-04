@@ -1,17 +1,19 @@
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+// ⬇️ BLOCCO 1: Connessione Firebase ufficiale
+import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 
+// Configurazione della tua app Firebase
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY as string,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN as string,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID as string,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET as string,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID as string,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID as string,
+  apiKey: "AIzaSyB5L9dalvw1YBXe5hk9mXwZfU9rvxSW3CA",
+  authDomain: "atlas-eye.firebaseapp.com",
+  projectId: "atlas-eye",
+  storageBucket: "atlas-eye.firebasestorage.app",
+  messagingSenderId: "504294144651",
+  appId: "1:504294144651:web:949453b8d26c352969728e",
 };
 
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-export const auth = getAuth(app);
+// Inizializza Firebase
+const app = initializeApp(firebaseConfig);
+
+// Esporta il database Firestore
 export const db = getFirestore(app);
-export default app;
