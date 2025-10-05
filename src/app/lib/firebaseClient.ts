@@ -1,22 +1,27 @@
-// ⬇️ BLOCCO 1: Firebase Client
+// 🟢 BLOCCO 1: Firebase Client (versione sicura e pulita)
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 
-// ✅ Configurazione Firebase
+// 🔐 Configurazione letta da variabili d'ambiente
 const firebaseConfig = {
-  apiKey: "AIzaSyB5L9dalvw1YBXe5hk9mXwZfU9rvxSW3CA",
-  authDomain: "atlas-eye.firebaseapp.com",
-  projectId: "atlas-eye",
-  storageBucket: "atlas-eye.firebasestorage.app",
-  messagingSenderId: "504294144651",
-  appId: "1:504294144651:web:949453b8d26c352969728e",
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN!,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID!,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET!,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID!,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID!,
 };
 
 // ✅ Evita doppie inizializzazioni
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-// ✅ Esporta Firestore e l’app
+// ✅ Esporta Firestore pronto all’uso
 export const db = getFirestore(app);
-export { app };
 
-console.log("🔥 FirebaseClient inizializzato correttamente");
+// ✅ Esporta anche l'app Firebase (per l'autenticazione)
+export default app;
+
+export const appInstance = app;
+
+
+console.log("🔥 Firebase Client inizializzato correttamente e chiavi protette.");
