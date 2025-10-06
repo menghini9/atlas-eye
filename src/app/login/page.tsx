@@ -1,55 +1,70 @@
-// ⬇️ BLOCCO 1: Login con Firebase Auth
 "use client";
 import { useState } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../lib/authClient";
+import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
+    setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
       alert("✅ Login effettuato correttamente!");
-      window.location.href = "/"; // Torna alla home
+      router.push("/");
     } catch (err: any) {
-      setError("❌ Credenziali errate o utente inesistente.");
-      console.error(err);
+      console.error("Errore login:", err);
+      setError("Email o password errati");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div style={{ 
-      display: "flex", 
-      flexDirection: "column", 
-      alignItems: "center", 
-      justifyContent: "center", 
-      height: "100vh" 
-    }}>
-      <h1>🔐 Accedi ad Atlas Eye</h1>
-      <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", width: 300 }}>
+    <div style={{ textAlign: "center", marginTop: "80px" }}>
+      <h1>Atlas Eye 🔐</h1>
+      <form onSubmit={handleLogin}>
         <input
           type="email"
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
-          style={{ marginBottom: 10, padding: 8 }}
+          style={{ padding: "8px", marginBottom: "10px", width: "220px" }}
         />
+        <br />
         <input
           type="password"
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
-          style={{ marginBottom: 10, padding: 8 }}
+          style={{ padding: "8px", marginBottom: "10px", width: "220px" }}
         />
-        <button type="submit" style={{ padding: 8 }}>Accedi</button>
+        <br />
+        <button
+          type="submit"
+          disabled={loading}
+          style={{
+            background: "#0070f3",
+            color: "white",
+            border: "none",
+            padding: "10px 20px",
+            borderRadius: "4px",
+            cursor: "pointer",
+          }}
+        >
+          {loading ? "Attendere..." : "Accedi"}
+        </button>
       </form>
-      {error && <p style={{ color: "red", marginTop: 10 }}>{error}</p>}
+      {error && <p style={{ color: "red" }}>{error}</p>}
     </div>
   );
 }
