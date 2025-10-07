@@ -181,20 +181,32 @@ export default function LoginPage() {
           </span>
         </p>
 
-        {/* Accesso ospite */}
-        <p style={{ marginTop: "10px" }}>
-          <span
-            onClick={handleGuestAccess}
-            style={{
-              color: "gray",
-              cursor: "pointer",
-              textDecoration: "underline",
-              fontSize: "14px",
-            }}
-          >
-            Entra come ospite (solo test)
-          </span>
-        </p>
+       {/* Accesso ospite aggiornato */}
+<div style={{ marginTop: "20px", textAlign: "center" }}>
+  <button
+    onClick={() => {
+      console.log("🧪 Accesso test attivato");
+      window.location.href = "/"; // reindirizza alla home
+    }}
+    style={{
+      backgroundColor: "#8a2be2",
+      color: "white",
+      border: "none",
+      padding: "10px 20px",
+      borderRadius: "8px",
+      cursor: "pointer",
+      fontWeight: "bold",
+      fontSize: "16px",
+      boxShadow: "0 0 8px rgba(138, 43, 226, 0.5)",
+      transition: "all 0.2s ease-in-out",
+    }}
+    onMouseOver={(e) => (e.currentTarget.style.opacity = "0.85")}
+    onMouseOut={(e) => (e.currentTarget.style.opacity = "1")}
+  >
+    🔍 Accedi come Test
+  </button>
+</div>
+
       </form>
     </div>
   );
