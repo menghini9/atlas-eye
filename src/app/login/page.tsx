@@ -1,9 +1,9 @@
-// ⬇️ BLOCCO 3: LoginScreen (aggiornato)
+// ⬇️ BLOCCO 3: LoginScreen (aggiornato definitivo)
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from "firebase/auth";
-import { auth } from "../lib/authClient";
+import { auth } from "../lib/authClient"; // <--- percorso corretto
 
 export default function LoginPage() {
   const router = useRouter();
@@ -12,32 +12,34 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const googleProvider = new GoogleAuthProvider();
 
-  // Login classico con email/password
+  // 🔹 Login con email/password
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      router.push("/");
+      router.push("/home"); // <--- home page coerente
     } catch (err: any) {
+      console.error("Errore login email:", err);
       setError("Email o password errati");
     }
   };
 
-  // Login Google
+  // 🔹 Login Google
   const handleGoogleLogin = async () => {
     try {
       await signInWithPopup(auth, googleProvider);
-      router.push("/");
+      router.push("/home");
     } catch (err: any) {
       console.error("Errore login Google:", err);
       alert("Errore durante il login con Google");
     }
   };
 
-  // Accesso rapido per test (senza login)
+  // 🔹 Accesso rapido per test (senza login)
   const handleGuestAccess = () => {
-    alert("⚠️ Accesso ospite attivo solo per test — non vengono salvati dati utente");
-    router.push("/");
+    console.log("🧪 Accesso test attivato");
+    alert("⚠️ Accesso test attivo — login bypassato per debug");
+    router.push("/home"); // <--- navigazione interna senza reload
   };
 
   return (
@@ -113,7 +115,7 @@ export default function LoginPage() {
           <p style={{ color: "red", marginTop: "10px", fontSize: "14px" }}>{error}</p>
         )}
 
-        {/* Social Login */}
+        {/* 🔹 Social Login */}
         <div style={{ marginTop: "20px" }}>
           <p>Oppure accedi con:</p>
           <div style={{ display: "flex", justifyContent: "center", gap: "10px" }}>
@@ -166,7 +168,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Link a Registrazione */}
+        {/* 🔹 Link Registrazione */}
         <p style={{ marginTop: "20px" }}>
           Non sei ancora registrato?{" "}
           <span
@@ -181,32 +183,29 @@ export default function LoginPage() {
           </span>
         </p>
 
-       {/* Accesso ospite aggiornato */}
-<div style={{ marginTop: "20px", textAlign: "center" }}>
-  <button
-    onClick={() => {
-      console.log("🧪 Accesso test attivato");
-      window.location.href = "/"; // reindirizza alla home
-    }}
-    style={{
-      backgroundColor: "#8a2be2",
-      color: "white",
-      border: "none",
-      padding: "10px 20px",
-      borderRadius: "8px",
-      cursor: "pointer",
-      fontWeight: "bold",
-      fontSize: "16px",
-      boxShadow: "0 0 8px rgba(138, 43, 226, 0.5)",
-      transition: "all 0.2s ease-in-out",
-    }}
-    onMouseOver={(e) => (e.currentTarget.style.opacity = "0.85")}
-    onMouseOut={(e) => (e.currentTarget.style.opacity = "1")}
-  >
-    🔍 Accedi come Test
-  </button>
-</div>
-
+        {/* 🔹 Accesso test */}
+        <div style={{ marginTop: "20px", textAlign: "center" }}>
+          <button
+            onClick={handleGuestAccess}
+            type="button"
+            style={{
+              backgroundColor: "#8a2be2",
+              color: "white",
+              border: "none",
+              padding: "10px 20px",
+              borderRadius: "8px",
+              cursor: "pointer",
+              fontWeight: "bold",
+              fontSize: "16px",
+              boxShadow: "0 0 8px rgba(138, 43, 226, 0.5)",
+              transition: "all 0.2s ease-in-out",
+            }}
+            onMouseOver={(e) => (e.currentTarget.style.opacity = "0.85")}
+            onMouseOut={(e) => (e.currentTarget.style.opacity = "1")}
+          >
+            🔍 Accedi come Test
+          </button>
+        </div>
       </form>
     </div>
   );
