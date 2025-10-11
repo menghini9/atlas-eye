@@ -1,3 +1,4 @@
+// ⬇️ BLOCCO 4: HomePage con accesso test
 "use client";
 
 import { useEffect, useState } from "react";
@@ -6,136 +7,89 @@ import { auth } from "../lib/authClient";
 import { useRouter } from "next/navigation";
 
 export default function HomePage() {
-  const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const [user, setUser] = useState<any>(null);
+  const [isGuest, setIsGuest] = useState(false);
 
+  // Controllo autenticazione
   useEffect(() => {
+    const guestAccess = sessionStorage.getItem("guestAccess");
+    if (guestAccess === "true") {
+      setIsGuest(true);
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
         setUser(firebaseUser);
       } else {
-        router.push("/login");
+        router.push("/login"); // torna al login se non loggato
       }
-      setLoading(false);
     });
 
     return () => unsubscribe();
   }, [router]);
 
+  // Logout
   const handleLogout = async () => {
+    if (isGuest) {
+      sessionStorage.removeItem("guestAccess");
+      router.push("/login");
+      return;
+    }
+
     await signOut(auth);
     router.push("/login");
   };
 
-  if (loading) {
+  // Se non loggato
+  if (!user && !isGuest)
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          background: "linear-gradient(135deg, #6a1b9a, #8a2be2)",
-          color: "white",
-          fontSize: "18px",
-          fontWeight: "bold",
-        }}
-      >
-        👁️ Caricamento in corso...
+      <div style={{ textAlign: "center", marginTop: "50px" }}>
+        <p>Caricamento in corso...</p>
       </div>
     );
-  }
 
+  // Contenuto principale
   return (
     <div
       style={{
         minHeight: "100vh",
-        background: "linear-gradient(135deg, #6a1b9a, #8a2be2)",
+        background: "linear-gradient(135deg, #6a1b9a, #8e24aa)",
+        color: "white",
         display: "flex",
+        flexDirection: "column",
         justifyContent: "center",
         alignItems: "center",
-        color: "white",
-        fontFamily: "sans-serif",
+        textAlign: "center",
       }}
     >
-      <div
+      <h1>🏠 Benvenuto su Atlas Eye Home</h1>
+      {isGuest ? (
+        <p>🧪 Accesso test attivo — dati non salvati</p>
+      ) : (
+        <>
+          <p>Email: {user?.email}</p>
+          <p>UID: {user?.uid}</p>
+          <p>Ruolo: free</p>
+        </>
+      )}
+      <button
+        onClick={handleLogout}
         style={{
-          backgroundColor: "rgba(255,255,255,0.1)",
-          borderRadius: "16px",
-          padding: "40px",
-          textAlign: "center",
-          boxShadow: "0 8px 25px rgba(0,0,0,0.3)",
-          backdropFilter: "blur(8px)",
-          width: "90%",
-          maxWidth: "400px",
+          background: isGuest ? "#e53935" : "#ff5252",
+          border: "none",
+          padding: "10px 20px",
+          color: "white",
+          borderRadius: "6px",
+          cursor: "pointer",
+          fontSize: "16px",
+          marginTop: "20px",
         }}
       >
-        <h1 style={{ fontSize: "1.8rem", marginBottom: "10px" }}>
-          🏠 Benvenuto su <span style={{ color: "#FFD700" }}>Atlas Eye</span>
-        </h1>
-
-        {user && (
-          <>
-            <p style={{ margin: "10px 0" }}>👤 {user.email}</p>
-            <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>
-              UID: {user.uid}
-            </p>
-            <p style={{ fontSize: "1rem", marginTop: "8px" }}>
-              Ruolo: <strong>free</strong>
-            </p>
-          </>
-        )}
-
-        <div style={{ marginTop: "25px", display: "flex", flexDirection: "column", gap: "12px" }}>
-          <button
-            onClick={handleLogout}
-            style={{
-              backgroundColor: "#ff5252",
-              border: "none",
-              padding: "12px 24px",
-              borderRadius: "8px",
-              cursor: "pointer",
-              color: "white",
-              fontWeight: "bold",
-              fontSize: "16px",
-              transition: "all 0.3s ease-in-out",
-            }}
-            onMouseOver={(e) =>
-              (e.currentTarget.style.backgroundColor = "#ff1744")
-            }
-            onMouseOut={(e) =>
-              (e.currentTarget.style.backgroundColor = "#ff5252")
-            }
-          >
-            🔓 Esci
-          </button>
-
-          <button
-            onClick={() => router.push("/login")}
-            style={{
-              backgroundColor: "rgba(255,255,255,0.2)",
-              border: "none",
-              padding: "12px 24px",
-              borderRadius: "8px",
-              cursor: "pointer",
-              color: "white",
-              fontWeight: "bold",
-              fontSize: "16px",
-              transition: "all 0.3s ease-in-out",
-            }}
-            onMouseOver={(e) =>
-              (e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.35)")
-            }
-            onMouseOut={(e) =>
-              (e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.2)")
-            }
-          >
-            ↩️ Torna al Login
-          </button>
-        </div>
-      </div>
+        Esci
+      </button>
     </div>
   );
 }
-//test commit
+// ⬆️ FINE BLOCCO 4

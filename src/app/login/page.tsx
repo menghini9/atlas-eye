@@ -188,7 +188,8 @@ export default function LoginPage() {
   <button
     onClick={() => {
       console.log("🧪 Accesso test attivato");
-      window.location.href = "/home"; // ✅ percorso corretto
+      sessionStorage.setItem("guestAccess", "true");
+     window.location.href = "/home"; // ✅ percorso corretto
     }}
     type="button"
     style={{
