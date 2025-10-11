@@ -1,9 +1,8 @@
-// 🟢 BLOCCO 1: Firebase Client (versione sicura e pulita)
+// ⬇️ BLOCCO 1: Firebase Client — versione definitiva e sicura
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 
-// 🔐 Configurazione letta da variabili d'ambiente
-// Configurazione Firebase protetta tramite variabili d’ambiente
+// 🔐 Configurazione Firebase tramite variabili d’ambiente (.env.local)
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -13,17 +12,14 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-
-// ✅ Evita doppie inizializzazioni
+// ✅ Evita doppie inizializzazioni (importante per Next.js e Vercel)
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-// ✅ Esporta Firestore pronto all’uso
+// ✅ Esporta Firestore (per database)
 export const db = getFirestore(app);
 
-// ✅ Esporta anche l'app Firebase (per l'autenticazione)
+// ✅ Esporta l'app principale (per autenticazione e altri servizi)
 export default app;
 
-export const appInstance = app;
-
-
+// 🧩 Log di conferma — utile per debug ma innocuo in produzione
 console.log("🔥 Firebase Client inizializzato correttamente e chiavi protette.");

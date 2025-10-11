@@ -5,6 +5,13 @@ import { useRouter } from "next/navigation";
 import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from "firebase/auth";
 import { auth } from "../lib/authClient"; // <--- percorso corretto
 
+// ⬇️ BLOCCO 1: Import Firestore + App Firebase
+import { getFirestore, doc, setDoc, serverTimestamp } from "firebase/firestore";
+import app from "../lib/firebaseClient";
+ // <--- percorso corretto per la tua app Firebase
+// ⬆️ FINE BLOCCO 1
+
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -23,17 +30,47 @@ export default function LoginPage() {
       setError("Email o password errati");
     }
   };
+// ⬇️ BLOCCO 2: Inizializza Firestore con la tua app
+const db = getFirestore(app);
+// ⬆️ FINE BLOCCO 2
 
   // 🔹 Login Google
-  const handleGoogleLogin = async () => {
-    try {
-      await signInWithPopup(auth, googleProvider);
-      router.push("/home");
-    } catch (err: any) {
-      console.error("Errore login Google:", err);
-      alert("Errore durante il login con Google");
-    }
-  };
+// ⬇️ BLOCCO 3: handleGoogleLogin (versione debug Firestore)
+
+const handleGoogleLogin = async () => {
+  try {
+    const provider = new GoogleAuthProvider();
+    const result = await signInWithPopup(auth, provider);
+    const user = result.user;
+
+    // 🧩 Import Firestore dal client già inizializzato
+    const { db } = await import("../lib/firebaseClient");
+    const { doc, setDoc, serverTimestamp } = await import("firebase/firestore");
+
+    console.log("🧠 Tentativo di salvataggio utente su Firestore...");
+
+    // 🔥 Scrive o aggiorna documento utente
+    await setDoc(
+      doc(db, "users", user.uid),
+      {
+        email: user.email,
+        role: "free",
+        createdAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    console.log("✅ Utente salvato con successo:", user.email);
+    alert("✅ Login con Google riuscito!");
+    router.push("/home");
+  } catch (error) {
+    console.error("❌ Errore durante il login con Google:", error);
+    alert("Errore durante il login con Google. Controlla la console.");
+  }
+};
+// ⬆️ FINE BLOCCO 3
+
+
 
   // 🔹 Accesso rapido per test (senza login)
   const handleGuestAccess = () => {
