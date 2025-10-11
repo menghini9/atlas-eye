@@ -1,0 +1,27 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "next.config.ts",
+      "use": "@vercel/next"
+    }
+  ],
+  "env": {
+    "VERCEL_ENV": "production"
+  },
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [
+        { "type": "host", "value": "atlas-*vercel.app" }
+      ],
+      "destination": "https://atlas-eye.vercel.app/:path*",
+      "permanent": true
+    }
+  ],
+  "production": {
+    "env": {
+      "VERCEL_ENV": "production"
+    }
+  }
+}
