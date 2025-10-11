@@ -1,4 +1,4 @@
-// ⬇️ BLOCCO 4: HomePage con accesso test
+// ⬇️ BLOCCO 4: HomePage con accesso test + banner dev
 "use client";
 
 import { useEffect, useState } from "react";
@@ -10,27 +10,32 @@ export default function HomePage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [isGuest, setIsGuest] = useState(false);
+  const [isDev, setIsDev] = useState(false); // ✅ banner modalità sviluppo
 
-  // Controllo autenticazione
+  // 🔍 Controllo autenticazione
   useEffect(() => {
     const guestAccess = sessionStorage.getItem("guestAccess");
     if (guestAccess === "true") {
       setIsGuest(true);
-      return;
+    }
+
+    // ✅ rileva se sei in sviluppo locale
+    if (typeof window !== "undefined" && window.location.hostname === "localhost") {
+      setIsDev(true);
     }
 
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
         setUser(firebaseUser);
-      } else {
-        router.push("/login"); // torna al login se non loggato
+      } else if (!guestAccess) {
+        router.push("/login");
       }
     });
 
     return () => unsubscribe();
   }, [router]);
 
-  // Logout
+  // 🚪 Logout
   const handleLogout = async () => {
     if (isGuest) {
       sessionStorage.removeItem("guestAccess");
@@ -42,7 +47,6 @@ export default function HomePage() {
     router.push("/login");
   };
 
-  // Se non loggato
   if (!user && !isGuest)
     return (
       <div style={{ textAlign: "center", marginTop: "50px" }}>
@@ -50,7 +54,6 @@ export default function HomePage() {
       </div>
     );
 
-  // Contenuto principale
   return (
     <div
       style={{
@@ -62,9 +65,31 @@ export default function HomePage() {
         justifyContent: "center",
         alignItems: "center",
         textAlign: "center",
+        position: "relative",
       }}
     >
+      {/* 🧩 Banner modalità sviluppo */}
+      {isDev && (
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            width: "100%",
+            background: "#ff9800",
+            color: "black",
+            fontWeight: "bold",
+            textAlign: "center",
+            padding: "8px 0",
+            boxShadow: "0 2px 6px rgba(0,0,0,0.3)",
+            letterSpacing: "0.5px",
+          }}
+        >
+          🧩 Modalità Sviluppo Attiva (localhost)
+        </div>
+      )}
+
       <h1>🏠 Benvenuto su Atlas Eye Home</h1>
+
       {isGuest ? (
         <p>🧪 Accesso test attivo — dati non salvati</p>
       ) : (
@@ -74,6 +99,7 @@ export default function HomePage() {
           <p>Ruolo: free</p>
         </>
       )}
+
       <button
         onClick={handleLogout}
         style={{

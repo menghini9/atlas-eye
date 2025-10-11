@@ -186,11 +186,11 @@ export default function LoginPage() {
      {/* ⬇️ BLOCCO 3.5: Accesso test aggiornato */}
 <div style={{ marginTop: "20px", textAlign: "center" }}>
   <button
-    onClick={() => {
-      console.log("🧪 Accesso test attivato");
-      sessionStorage.setItem("guestAccess", "true");
-     window.location.href = "/home"; // ✅ percorso corretto
-    }}
+onClick={() => {
+  console.log("🧪 Accesso test attivato");
+  sessionStorage.setItem("guestAccess", "true"); // ✅ mantiene sessione test
+  window.location.href = "/home"; // ✅ reindirizza alla home giusta
+}}
     type="button"
     style={{
       backgroundColor: "#8a2be2",
