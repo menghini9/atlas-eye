@@ -18,10 +18,5 @@
       "destination": "https://atlas-eye.vercel.app/:path*",
       "permanent": true
     }
-  ],
-  "production": {
-    "env": {
-      "VERCEL_ENV": "production"
-    }
-  }
+  ]
 }
