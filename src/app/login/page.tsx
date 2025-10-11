@@ -183,29 +183,34 @@ export default function LoginPage() {
           </span>
         </p>
 
-        {/* 🔹 Accesso test */}
-        <div style={{ marginTop: "20px", textAlign: "center" }}>
-          <button
-            onClick={handleGuestAccess}
-            type="button"
-            style={{
-              backgroundColor: "#8a2be2",
-              color: "white",
-              border: "none",
-              padding: "10px 20px",
-              borderRadius: "8px",
-              cursor: "pointer",
-              fontWeight: "bold",
-              fontSize: "16px",
-              boxShadow: "0 0 8px rgba(138, 43, 226, 0.5)",
-              transition: "all 0.2s ease-in-out",
-            }}
-            onMouseOver={(e) => (e.currentTarget.style.opacity = "0.85")}
-            onMouseOut={(e) => (e.currentTarget.style.opacity = "1")}
-          >
-            🔍 Accedi come Test
-          </button>
-        </div>
+     {/* ⬇️ BLOCCO 3.5: Accesso test aggiornato */}
+<div style={{ marginTop: "20px", textAlign: "center" }}>
+  <button
+    onClick={() => {
+      console.log("🧪 Accesso test attivato");
+      window.location.href = "/home"; // ✅ percorso corretto
+    }}
+    type="button"
+    style={{
+      backgroundColor: "#8a2be2",
+      color: "white",
+      border: "none",
+      padding: "10px 20px",
+      borderRadius: "8px",
+      cursor: "pointer",
+      fontWeight: "bold",
+      fontSize: "16px",
+      boxShadow: "0 0 8px rgba(138, 43, 226, 0.5)",
+      transition: "all 0.2s ease-in-out",
+    }}
+    onMouseOver={(e) => (e.currentTarget.style.opacity = "0.85")}
+    onMouseOut={(e) => (e.currentTarget.style.opacity = "1")}
+  >
+    🔍 Accedi come Test
+  </button>
+</div>
+{/* ⬆️ FINE BLOCCO 3.5 */}
+
       </form>
     </div>
   );
