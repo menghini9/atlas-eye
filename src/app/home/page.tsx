@@ -1,10 +1,14 @@
 // ⬇️ BLOCCO 4: HomePage con accesso test + banner dev
 "use client";
 
+// ⬇️ Import corretti per autenticazione
+"use client";
 import { useEffect, useState } from "react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "../lib/authClient";
 import { useRouter } from "next/navigation";
+
+
 
 export default function HomePage() {
   const router = useRouter();
@@ -13,6 +17,7 @@ export default function HomePage() {
   const [isDev, setIsDev] = useState(false); // ✅ banner modalità sviluppo
 
   // 🔍 Controllo autenticazione
+// ⬇️ BLOCCO 3.3: Controllo autenticazione completo e sicuro
   useEffect(() => {
     const guestAccess = sessionStorage.getItem("guestAccess");
     if (guestAccess === "true") {
@@ -24,28 +29,35 @@ export default function HomePage() {
       setIsDev(true);
     }
 
+    // 👁️ Controlla stato utente Firebase
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
         setUser(firebaseUser);
+        setIsGuest(false); // 🔒 evita che appaia “accesso test”
       } else if (!guestAccess) {
+        // 🔁 Nessun utente né accesso guest → redirect
         router.push("/login");
       }
     });
 
     return () => unsubscribe();
   }, [router]);
+// ⬆️ FINE BLOCCO 3.3
+
 
   // 🚪 Logout
-// ⬇️ BLOCCO 2: Logout con redirect automatico
+// ⬇️ BLOCCO 3.2: Funzione logout con redirect automatico
 const handleLogout = async () => {
   try {
-    await signOut(auth); // 🔒 Disconnette l’utente da Firebase
-    window.location.href = "/login"; // 🔁 Reindirizza immediatamente alla pagina di login
+    await signOut(auth); // Disconnette utente Firebase
+    router.push("/login"); // Reindirizza subito alla login
   } catch (error) {
     console.error("Errore durante il logout:", error);
     alert("❌ Errore durante la disconnessione. Riprova.");
   }
 };
+// ⬆️ FINE BLOCCO 3.2
+
 // ⬆️ FINE BLOCCO 2
 
 
