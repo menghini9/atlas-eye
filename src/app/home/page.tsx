@@ -36,16 +36,18 @@ export default function HomePage() {
   }, [router]);
 
   // 🚪 Logout
-  const handleLogout = async () => {
-    if (isGuest) {
-      sessionStorage.removeItem("guestAccess");
-      router.push("/login");
-      return;
-    }
-
+// ⬇️ BLOCCO 2: Logout con redirect automatico
+const handleLogout = async () => {
+  try {
     await signOut(auth);
-    router.push("/login");
-  };
+    window.location.href = "/login"; // 🔁 redirect immediato alla pagina di login
+  } catch (error) {
+    console.error("Errore durante il logout:", error);
+    alert("Errore durante la disconnessione. Riprova.");
+  }
+};
+// ⬆️ FINE BLOCCO 2
+
 
   if (!user && !isGuest)
     return (
