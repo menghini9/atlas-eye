@@ -1,12 +1,15 @@
-// 🔁 Redirect automatico da "/" a "/home"
+// ⬇️ BLOCCO 1 — Redirect iniziale (modificato per Atlas Eye)
 "use client";
-import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
-export default function RootRedirect() {
+export default function MainRedirect() {
   const router = useRouter();
+
   useEffect(() => {
-    router.push("/home");
+    router.push("/profile"); // ✅ Reindirizza alla pagina profilo
   }, [router]);
-  return null;
+
+  return null; // ✅ Nessun contenuto visibile
 }
+// ⬆️ FINE BLOCCO 1

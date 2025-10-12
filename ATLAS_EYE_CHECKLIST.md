@@ -33,7 +33,7 @@
 - 🟡 Bottoni social (Google attivo, Facebook/Apple disattivati)
 - ✅ Middleware di autenticazione (Firebase cookie + modalità dev test)
 - 🟡 Refresh token + sessione persistente
-- 🟡 Redirect automatico utenti loggati → `/home`
+- 🟡 Redirect automatico utenti loggati → `/profile`
 - ⏳ Gestione ruoli `free / pro / admin`
 - ⏳ Limitazione accesso a route protette per ruolo
 - ⏳ Logging degli accessi e monitoraggio anomalie
@@ -43,7 +43,7 @@
 ## 🎨 FASE 3 – UI / UX e design system (🟡 In corso)
 - ✅ Login e Register page base funzionanti
 - 🟡 Miglioramento estetico (layout responsivo, palette coerente)
-- ⏳ Pulsanti “Torna alla home” / “Accedi come ospite”
+- ⏳ Pulsanti “Torna alla profile” / “Accedi come ospite”
 - 🟡 Configurazione Tailwind CSS e `postcss.config.mjs`
 - ⏳ Creazione design system (brand colors, tipografia, componenti)
 - ⏳ Implementazione navbar / sidebar / card component

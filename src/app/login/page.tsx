@@ -24,7 +24,7 @@ export default function LoginPage() {
     e.preventDefault();
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      router.push("/home"); // <--- home page coerente
+      router.push("/profile"); // <--- profile page coerente
     } catch (err: any) {
       console.error("Errore login email:", err);
       setError("Email o password errati");
@@ -62,7 +62,7 @@ const handleGoogleLogin = async () => {
 
     console.log("✅ Utente salvato con successo:", user.email);
     alert("✅ Login con Google riuscito!");
-    router.push("/home");
+    router.push("/profile");
   } catch (error) {
     console.error("❌ Errore durante il login con Google:", error);
     alert("Errore durante il login con Google. Controlla la console.");
@@ -76,7 +76,7 @@ const handleGoogleLogin = async () => {
   const handleGuestAccess = () => {
     console.log("🧪 Accesso test attivato");
     alert("⚠️ Accesso test attivo — login bypassato per debug");
-    router.push("/home"); // <--- navigazione interna senza reload
+    router.push("/profile"); // <--- navigazione interna senza reload
   };
 
   return (
@@ -226,7 +226,7 @@ const handleGoogleLogin = async () => {
 onClick={() => {
   console.log("🧪 Accesso test attivato");
   sessionStorage.setItem("guestAccess", "true"); // ✅ mantiene sessione test
-  window.location.href = "/home"; // ✅ reindirizza alla home giusta
+  window.location.href = "/profile"; // ✅ reindirizza alla profile giusta
 }}
     type="button"
     style={{
