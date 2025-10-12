@@ -1,7 +1,7 @@
 // ⬇️ BLOCCO 1: AuthClient completo e tipizzato
 import { useEffect, useState } from "react";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
-import { appInstance as app } from "./firebaseClient";
+import app from "./firebaseClient";
 
 export const auth = getAuth(app);
 
