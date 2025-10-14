@@ -1,29 +1,24 @@
-// ⬇️ BLOCCO 1: next.config.ts completo con controllo dominio e ESLint disattivato
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true, // ✅ Disattiva controlli ESLint durante il deploy
-  },
+// ⬇️ BLOCCO CORRETTO NEXT CONFIG – compatibile con Cesium
+import type { NextConfig } from "next";
 
-  reactStrictMode: true, // 🔒 Attiva modalità rigorosa di React
-
-  // 🔁 Reindirizza automaticamente qualsiasi dominio "preview" o errato
+const nextConfig: NextConfig = {
+  // 🔄 eventuale redirect automatico su Vercel
   async redirects() {
     return [
       {
-        source: '/:path*',
-        has: [
-          {
-            type: 'host',
-            value: '(?!atlas-eye\\.vercel\\.app).*', // Tutto ciò che NON è atlas-eye.vercel.app
-          },
-        ],
-        destination: 'https://atlas-eye.vercel.app/:path*',
+        source: "/:path*",
+        destination: "https://atlas-eye.vercel.app/:path*",
         permanent: true,
       },
     ];
   },
+
+  // ⚙️ Fix per Cesium e altri moduli Node (fs non supportato lato client)
+  webpack: (config) => {
+    config.resolve.fallback = { fs: false };
+    return config;
+  },
 };
 
 export default nextConfig;
-// ⬆️ FINE BLOCCO 1
+// ⬆️ FINE BLOCCO CORRETTO
