@@ -1,141 +1,99 @@
-// ⬇️ BLOCCO 5.4 — Atlas Eye “Terra Viva”: mappa realistica giorno/notte
+// ⬇️ BLOCCO 5.5 — Atlas Eye “Terra Reale Dinamica”
 "use client";
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
-import MapboxGeocoder from "@mapbox/mapbox-gl-geocoder";
 import "mapbox-gl/dist/mapbox-gl.css";
-import "@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css";
 import SunCalc from "suncalc";
 
-// ✅ Token Mapbox
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
-const mapboxglAny = mapboxgl as unknown as any;
 
 export default function MapPage() {
+  const router = useRouter();
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
-  const router = useRouter();
   const [isNight, setIsNight] = useState(false);
-
-  // 🕐 Calcola giorno o notte in base all'ora e posizione
-  const updateLighting = (map: mapboxgl.Map) => {
-    const now = new Date();
-    const { lat, lng } = map.getCenter();
-    const times = SunCalc.getTimes(now, lat, lng);
-    const isNightNow = now < times.sunrise || now > times.sunset;
-
-    setIsNight(isNightNow);
-
-    if (isNightNow) {
-      // 🌙 Modalità notturna
-      map.setStyle("mapbox://styles/mapbox/dark-v11");
-      map.once("style.load", () => {
-        map.addSource("night-lights", {
-          type: "raster",
-          tiles: [
-            "https://tiles.arcgis.com/tiles/wlVTGRSYTzAbjjiC/arcgis/rest/services/VIIRS_2023_Global/MapServer/tile/{z}/{y}/{x}",
-          ],
-          tileSize: 256,
-        });
-
-        map.addLayer({
-          id: "night-lights",
-          type: "raster",
-          source: "night-lights",
-          paint: { "raster-opacity": 0.75 },
-        });
-
-        map.setFog({
-          color: "rgb(5,5,25)",
-          "horizon-blend": 0.2,
-          "high-color": "rgb(60,100,255)",
-          "space-color": "rgb(0,0,15)",
-          "star-intensity": 0.4,
-        });
-        map.setLight({ color: "#88bbff", intensity: 0.2 });
-      });
-    } else {
-      // ☀️ Modalità diurna
-      map.setStyle("mapbox://styles/mapbox/satellite-streets-v12");
-      map.once("style.load", () => {
-        map.setFog({
-          color: "rgb(200,220,255)",
-          "horizon-blend": 0.5,
-          "high-color": "rgb(255,255,255)",
-          "space-color": "rgb(135,206,250)",
-          "star-intensity": 0.0,
-        });
-        map.setLight({ color: "white", intensity: 0.7 });
-      });
-    }
-  };
 
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
-    // 🌍 Inizializza mappa
+    // 🌍 Inizializza mappa 3D
     const map = new mapboxgl.Map({
       container: mapContainerRef.current,
-      style: "mapbox://styles/mapbox/satellite-streets-v12",
-      center: [10, 20],
-      zoom: 1.6,
+      style: "mapbox://styles/mapbox/satellite-v9",
+      center: [12, 20],
+      zoom: 1.3,
       pitch: 45,
-      bearing: -10,
+      bearing: 0,
       projection: "globe",
     });
     mapRef.current = map;
 
-    // 🌇 Imposta illuminazione iniziale
-    map.on("load", () => updateLighting(map));
-
-    // 🔄 Aggiorna ogni 10 minuti
-    const interval = setInterval(() => updateLighting(map), 600000);
-
-    // 🔍 Geocoder (cerca luogo)
-    const geocoder = new (MapboxGeocoder as any)({
-      accessToken: (mapboxgl as any).accessToken,
-      mapboxgl: mapboxglAny,
-      marker: false,
-      placeholder: "Cerca luogo...",
-      proximity: { longitude: 12, latitude: 20 },
-      countries: "it,fr,de,gb,es,pt,us,ca",
-    });
-    map.addControl(geocoder);
-
-    geocoder.on("result", (e: any) => {
-      const coords = e.result.center;
-      map.flyTo({
-        center: coords,
-        zoom: 4.5,
-        pitch: 55,
-        speed: 0.8,
-        curve: 1.6,
-        essential: true,
+    // ✨ Quando lo stile è caricato
+    map.on("style.load", () => {
+      map.setFog({
+        color: "rgb(0, 10, 40)",
+        "horizon-blend": 0.3,
+        "high-color": "rgb(50,100,255)",
+        "space-color": "rgb(0,0,15)",
+        "star-intensity": 0.4,
       });
+
+      // 🌌 Layer notte (texture reale NASA)
+      map.addSource("earth-night", {
+        type: "raster",
+        tiles: [
+          "https://eoimages.gsfc.nasa.gov/images/imagerecords/79000/79765/earth_lights_lrg.jpg"
+        ],
+        tileSize: 256,
+      });
+
+      map.addLayer({
+        id: "earth-night",
+        type: "raster",
+        source: "earth-night",
+        paint: { "raster-opacity": 0.0 },
+      });
+
+      // 🔄 Aggiorna ogni minuto luce e blending
+      const updateLighting = () => {
+        const now = new Date();
+        const { lat, lng } = map.getCenter();
+        const sunPos = SunCalc.getPosition(now, lat, lng);
+        const sunAngle = (sunPos.altitude * 180) / Math.PI;
+        const nightOpacity = Math.max(0, Math.min(1, (10 - sunAngle) / 10));
+
+        setIsNight(nightOpacity > 0.4);
+
+        // 🌙 Transizione tra texture giorno e notte
+        map.setPaintProperty("earth-night", "raster-opacity", nightOpacity);
+
+        // 💡 Luce dinamica del sole/luna
+        map.setLight({
+          color: isNight ? "#88bbff" : "white",
+          intensity: isNight ? 0.2 : 0.8,
+          position: [1, 180, sunAngle > 0 ? sunAngle * 2 : 0],
+        });
+      };
+
+      updateLighting();
+      const interval = setInterval(updateLighting, 60000);
+
+      // 🌍 Rotazione continua lenta (orbita)
+      let rotation = 0;
+      const animateRotation = () => {
+        rotation += 0.02;
+        map.setBearing(rotation % 360);
+        requestAnimationFrame(animateRotation);
+      };
+      animateRotation();
+
+      // 🌫️ Rimuovi e ripulisci
+      map.on("remove", () => clearInterval(interval));
     });
-
-    // 🎨 Centra la barra
-    const styleSearchBar = () => {
-      const gc = document.querySelector(".mapboxgl-ctrl-geocoder") as HTMLElement;
-      if (gc) {
-        gc.style.position = "absolute";
-        gc.style.top = "20px";
-        gc.style.left = "50%";
-        gc.style.transform = "translateX(-50%)";
-        gc.style.width = "350px";
-        gc.style.zIndex = "3";
-      }
-    };
-    setTimeout(styleSearchBar, 1000);
-
-    // 🧭 Controlli base
-    map.addControl(new mapboxgl.NavigationControl({ showCompass: true }), "bottom-right");
-    map.addControl(new mapboxgl.ScaleControl({ unit: "metric" }), "bottom-left");
 
     return () => {
-      clearInterval(interval);
       map.remove();
     };
   }, []);
@@ -195,9 +153,9 @@ export default function MapPage() {
           zIndex: 3,
         }}
       >
-        {isNight ? "🌙 Modalità Notturna Attiva" : "☀️ Modalità Diurna Attiva"}
+        {isNight ? "🌙 Modalità Notturna Reale" : "☀️ Modalità Diurna Reale"}
       </div>
     </div>
   );
 }
-// ⬆️ FINE BLOCCO 5.4 — Terra Viva
+// ⬆️ FINE BLOCCO 5.5
