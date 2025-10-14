@@ -1,148 +1,117 @@
-// ⬇️ BLOCCO 5.2 — MapPage (3D realistico + Geocoder + controlli)  // <--- SOSTITUISCI TUTTO
+// ⬇️ BLOCCO 5.3 — MapPage (FlyTo + cambio stile dinamico + geocoder centrato)
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
-
-// CSS necessari
-import "mapbox-gl/dist/mapbox-gl.css";
 import MapboxGeocoder from "@mapbox/mapbox-gl-geocoder";
+import "mapbox-gl/dist/mapbox-gl.css";
 import "@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css";
+
+// ✅ Token ambiente
+mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 const mapboxglAny = mapboxgl as unknown as any;
 
-// ✅ Token da variabile d'ambiente (client-side)
-mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
-
 export default function MapPage() {
-  const router = useRouter();
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
+  const router = useRouter();
+  const [currentStyle, setCurrentStyle] = useState("mapbox://styles/mapbox/satellite-streets-v12");
 
   useEffect(() => {
-    // 🔒 Guard-rail: token mancante -> avviso visibile
-    if (!mapboxgl.accessToken) {
-      // Messaggio visibile in pagina
-      const msg = document.createElement("div");
-      msg.textContent =
-        "⚠️ Mapbox token assente. Imposta NEXT_PUBLIC_MAPBOX_TOKEN e ricarica.";
-      Object.assign(msg.style, {
-        position: "absolute",
-        top: "20px",
-        left: "50%",
-        transform: "translateX(-50%)",
-        background: "#ffcc00",
-        color: "#000",
-        padding: "10px 14px",
-        borderRadius: "10px",
-        zIndex: "9999",
-        fontWeight: "600",
-      } as CSSStyleDeclaration);
-      document.body.appendChild(msg);
-      console.error("Mapbox token mancante (NEXT_PUBLIC_MAPBOX_TOKEN).");
-      return;
-    }
+    if (!mapContainerRef.current) return;
 
-    if (mapRef.current || !mapContainerRef.current) return;
-
-    // 🌍 Inizializza mappa (stile realistico ma con confini/etichette)
+    // 🌍 Inizializza la mappa
     const map = new mapboxgl.Map({
       container: mapContainerRef.current,
-      style: "mapbox://styles/mapbox/satellite-streets-v12", // realistico + confini/label
-      center: [12, 20], // long, lat (Africa-Europa in vista globale)
+      style: currentStyle,
+      center: [10, 20],
       zoom: 1.6,
-      projection: "globe", // 🌐 globo 3D
       pitch: 45,
       bearing: -10,
-      antialias: true,
+      projection: "globe",
     });
     mapRef.current = map;
 
-    // ✨ Atmosfera/spazio per effetto "Earth from space"
+    // ✨ Effetto atmosfera
     map.on("style.load", () => {
       map.setFog({
-        range: [0.5, 10],
-        color: "rgb(0, 6, 20)",
-        "horizon-blend": 0.25,
-        "high-color": "rgb(70, 150, 255)",
-        "space-color": "rgb(8, 10, 24)",
-        "star-intensity": 0.25,
+        color: "rgb(0, 0, 50)",
+        "horizon-blend": 0.3,
+        "high-color": "rgb(80, 160, 255)",
+        "space-color": "rgb(11, 11, 25)",
+        "star-intensity": 0.3,
       });
-
-      // 🔳 Confini più marcati (stati + regioni) — se presenti nello stile
-      const tweaks: Array<{
-        id: string;
-        paint: Record<string, any>;
-        layout?: Record<string, any>;
-      }> = [
-        { id: "admin-0-boundary", paint: { "line-color": "#ffffff", "line-width": 1.1, "line-opacity": 0.9 } },
-        { id: "admin-0-boundary-disputed", paint: { "line-color": "#ffd166", "line-width": 1.1, "line-opacity": 0.9 } },
-        { id: "admin-1-boundary", paint: { "line-color": "#dddddd", "line-width": 0.7, "line-opacity": 0.8 } },
-      ];
-     // ⬇️ BLOCCO 5.2.1 — Tuning confini (FIX tipi)
-tweaks.forEach(({ id, paint, layout }) => {
-  try {
-    if (layout) {
-      (Object.entries(layout) as [string, any][])
-        .forEach(([k, v]) => map.setLayoutProperty(id, k as any, v));
-    }
-    (Object.entries(paint) as [string, any][])
-      .forEach(([k, v]) => map.setPaintProperty(id, k as any, v));
-  } catch {
-    // layer non presente: ignora senza rompere
-  }
-});
-// ⬆️ FINE BLOCCO 5.2.1
-
     });
 
-    // 🧭 Controlli base (zoom/rotazione) + scala
+    // 🧭 Controlli base
     map.addControl(new mapboxgl.NavigationControl({ showCompass: true }), "bottom-right");
     map.addControl(new mapboxgl.ScaleControl({ unit: "metric" }), "bottom-left");
 
-    // 🔍 Geocoder (barra di ricerca funzionante)
-    const geocoder = new MapboxGeocoder({
-      accessToken: mapboxgl.accessToken,
-      mapboxgl,
+    // 🔍 Barra di ricerca funzionante con FlyTo
+    const geocoder = new (MapboxGeocoder as any)({
+  accessToken: (mapboxgl as any).accessToken,
+  mapboxgl: mapboxglAny,
+
       marker: false,
       placeholder: "Cerca luogo...",
       proximity: { longitude: 12, latitude: 20 },
-      countries: "it,fr,de,gb,es,pt,us,ca" // opzionale: indirizza i suggerimenti
+      countries: "it,fr,de,gb,es,pt,us,ca",
     });
+
     map.addControl(geocoder);
 
-    // 🎯 Posiziona la barra di ricerca al centro in alto
-    map.once("load", () => {
-      const el = document.querySelector(".mapboxgl-ctrl-geocoder") as HTMLElement | null;
-      if (el) {
-        Object.assign(el.style, {
-          position: "absolute",
-          top: "20px",
-          left: "50%",
-          transform: "translateX(-50%)",
-          width: "420px",
-          maxWidth: "80vw",
-          zIndex: "5",
-        } as CSSStyleDeclaration);
-      }
+    // 📍 FlyTo animato sui risultati
+    geocoder.on("result", (e: any) => {
+      const coords = e.result.center;
+      map.flyTo({
+        center: coords,
+        zoom: 4.5,
+        pitch: 55,
+        speed: 0.8,
+        curve: 1.6,
+        essential: true,
+      });
     });
 
-    // 🔒 Limita lo zoom per non scendere nelle città
-    map.setMinZoom(1.2);
-    map.setMaxZoom(6.2); // confini ben visibili, no street-level
+    // 🎨 Centra barra di ricerca
+    const interval = setInterval(() => {
+      const gc = document.querySelector(".mapboxgl-ctrl-geocoder") as HTMLElement;
+      if (gc) {
+        gc.style.position = "absolute";
+        gc.style.top = "20px";
+        gc.style.left = "50%";
+        gc.style.transform = "translateX(-50%)";
+        gc.style.width = "350px";
+        gc.style.zIndex = "2";
+        clearInterval(interval);
+      }
+    }, 300);
 
     return () => {
+      clearInterval(interval);
       map.remove();
-      mapRef.current = null;
     };
-  }, []);
+  }, [currentStyle]);
+
+  // 🎛 Cambio stile dinamico
+  const handleStyleChange = (style: string) => {
+    setCurrentStyle(style);
+  };
 
   return (
-    <div style={{ width: "100vw", height: "100vh", position: "relative" }}>
-      {/* Contenitore mappa */}
+    <div
+      style={{
+        width: "100vw",
+        height: "100vh",
+        position: "relative",
+        overflow: "hidden",
+      }}
+    >
+      {/* 🌍 Contenitore mappa */}
       <div ref={mapContainerRef} style={{ width: "100%", height: "100%" }} />
 
-      {/* Pulsanti angolari */}
+      {/* 👤 Profilo */}
       <button
         onClick={() => router.push("/profile")}
         style={{
@@ -150,17 +119,17 @@ tweaks.forEach(({ id, paint, layout }) => {
           top: "20px",
           left: "20px",
           padding: "10px 20px",
-          borderRadius: "12px",
+          borderRadius: "8px",
           border: "none",
-          background: "#064a8c",
-          color: "#fff",
+          background: "#004080",
+          color: "white",
           cursor: "pointer",
-          boxShadow: "0 6px 18px rgba(0,0,0,0.25)",
         }}
       >
         👤 Profilo
       </button>
 
+      {/* 🚪 Esci */}
       <button
         onClick={() => router.push("/login")}
         style={{
@@ -168,17 +137,73 @@ tweaks.forEach(({ id, paint, layout }) => {
           top: "20px",
           right: "20px",
           padding: "10px 20px",
-          borderRadius: "12px",
+          borderRadius: "8px",
           border: "none",
           background: "#ff4444",
-          color: "#fff",
+          color: "white",
           cursor: "pointer",
-          boxShadow: "0 6px 18px rgba(0,0,0,0.25)",
         }}
       >
         🚪 Esci
       </button>
+
+      {/* 🎨 Selettore stile */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: "20px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          background: "rgba(0,0,0,0.6)",
+          borderRadius: "12px",
+          padding: "10px 20px",
+          display: "flex",
+          gap: "12px",
+          color: "white",
+          zIndex: 5,
+        }}
+      >
+        <button
+          onClick={() => handleStyleChange("mapbox://styles/mapbox/satellite-streets-v12")}
+          style={{
+            background: currentStyle.includes("satellite") ? "#00aaff" : "#333",
+            color: "white",
+            border: "none",
+            borderRadius: "8px",
+            padding: "6px 10px",
+            cursor: "pointer",
+          }}
+        >
+          🌌 Satellite
+        </button>
+        <button
+          onClick={() => handleStyleChange("mapbox://styles/mapbox/dark-v11")}
+          style={{
+            background: currentStyle.includes("dark") ? "#00aaff" : "#333",
+            color: "white",
+            border: "none",
+            borderRadius: "8px",
+            padding: "6px 10px",
+            cursor: "pointer",
+          }}
+        >
+          🌙 Dark
+        </button>
+        <button
+          onClick={() => handleStyleChange("mapbox://styles/mapbox/streets-v12")}
+          style={{
+            background: currentStyle.includes("streets") ? "#00aaff" : "#333",
+            color: "white",
+            border: "none",
+            borderRadius: "8px",
+            padding: "6px 10px",
+            cursor: "pointer",
+          }}
+        >
+          🗺️ Streets
+        </button>
+      </div>
     </div>
   );
 }
-// ⬆️ FINE BLOCCO 5.2
+// ⬆️ FINE BLOCCO 5.3 — Atlas Eye MapPage
