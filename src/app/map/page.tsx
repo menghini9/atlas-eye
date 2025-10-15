@@ -2,7 +2,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import "/public/cesium/Widgets/widgets.css";
+import "cesium/Build/Cesium/Widgets/widgets.css";
+
 
 export default function MapPage() {
   const containerRef = useRef<HTMLDivElement | null>(null);
