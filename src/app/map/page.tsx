@@ -1,124 +1,139 @@
-// ⬇️ BLOCCO 5.8.2 — Mappa 3D realistica senza errori TS o dynamic()
+// ⬇️ BLOCCO 6.1 — Cesium Orbital Earth (realistico + API key Cesium)
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
-import "mapbox-gl/dist/mapbox-gl.css";
-import "@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css";
+import "/public/cesium/Widgets/widgets.css";
 
 export default function MapPage() {
-  const mapContainerRef = useRef<HTMLDivElement | null>(null);
-  const router = useRouter();
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    let viewer: any;
 
-    const loadMap = async () => {
-      const mapboxgl = (await import("mapbox-gl")).default;
-      const MapboxGeocoder = (await import("@mapbox/mapbox-gl-geocoder")).default;
-      const SunCalc = (await import("suncalc")).default;
+    (async () => {
+      // ⚙️ Importa Cesium solo lato client
+      const Cesium = await import("cesium");
+      const {
+        Ion,
+        Viewer,
+        createWorldTerrain,
+        IonWorldImageryStyle,
+        createWorldImagery,
+        Cartesian3,
+        Math: CMath,
+        SunLight,
+        JulianDate,
+        SceneMode,
+        UrlTemplateImageryProvider,
+        ImageryLayer,
+      } = Cesium as any;
 
-      mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
+      // 🌍 Base URL per gli asset Cesium (richiesti in /public/cesium)
+      (window as any).CESIUM_BASE_URL = "/cesium";
 
-      // 🌍 Crea mappa 3D
-      const map = new mapboxgl.Map({
-        container: mapContainerRef.current!,
-        style: "mapbox://styles/mapbox/satellite-streets-v12",
-        center: [12, 20],
-        zoom: 1.6,
-        pitch: 45,
-        bearing: -15,
-        projection: "globe",
+      // 🔑 Imposta la chiave Cesium Ion
+      Ion.defaultAccessToken = process.env.NEXT_PUBLIC_CESIUM_API_KEY || "";
+
+      // 🪐 Crea il viewer (senza UI extra)
+      viewer = new Viewer(containerRef.current!, {
+        animation: false,
+        timeline: false,
+        baseLayerPicker: false,
+        geocoder: false,
+        homeButton: false,
+        navigationHelpButton: false,
+        sceneModePicker: false,
+        fullscreenButton: false,
+        infoBox: false,
+        selectionIndicator: false,
+        terrainProvider: createWorldTerrain(),
+        useBrowserRecommendedResolution: true,
+        requestRenderMode: true,
+        maximumRenderTimeChange: 0.0,
       });
 
-      // ☀️ Calcola posizione del sole
-      const now = new Date();
-      const sun = SunCalc.getPosition(now, 0, 0);
-      const sunAltitude = (sun.altitude * 180) / Math.PI;
-      const sunAzimuth = (sun.azimuth * 180) / Math.PI;
+      // 🌞 Attiva illuminazione solare realistica
+      viewer.scene.globe.enableLighting = true;
+      viewer.scene.light = new SunLight();
+      viewer.scene.globe.dynamicAtmosphereLighting = true;
+      viewer.scene.globe.showGroundAtmosphere = true;
 
-      // 🌌 Effetti giorno/notte
-      map.on("style.load", () => {
-        map.setFog({
-          color: sunAltitude < 0 ? "rgb(5,5,15)" : "rgb(0,20,60)",
-          "horizon-blend": 0.3,
-          "high-color": sunAltitude < 0 ? "rgb(80,80,120)" : "rgb(80,160,255)",
-          "space-color": "rgb(10,10,25)",
-          "star-intensity": sunAltitude < 0 ? 0.4 : 0.1,
-        });
+      // ——— LIVELLI IMMAGINI ———
+      // 1️⃣ AERIAL (fotorealistico, senza confini)
+      const layerAerial = viewer.imageryLayers.addImageryProvider(
+        createWorldImagery({ style: IonWorldImageryStyle.AERIAL })
+      );
+      layerAerial.alpha = 1.0;
 
-        map.setLight({
-          anchor: "viewport",
-          color: sunAltitude < 0 ? "rgb(255,220,180)" : "white",
-          intensity: sunAltitude < 0 ? 0.2 : 0.6,
-          position: [sunAzimuth, sunAltitude, 90],
-        });
+      // 2️⃣ AERIAL + LABELS (visibile solo da vicino)
+      const layerLabels = viewer.imageryLayers.addImageryProvider(
+        createWorldImagery({ style: IonWorldImageryStyle.AERIAL_WITH_LABELS })
+      );
+      layerLabels.alpha = 0.0;
+
+      // 3️⃣ LAYER NOTTURNO (NASA VIIRS, overlay realistico)
+      const nightProvider = new UrlTemplateImageryProvider({
+        url: "https://tiles.arcgis.com/tiles/wlVTGRSYTzAbjjiC/arcgis/rest/services/VIIRS_2023_Global/MapServer/tile/{z}/{y}/{x}",
+        tilingScheme: viewer.scene.globe.ellipsoid.tilingScheme,
+        maximumLevel: 8,
       });
+      const nightLayer: typeof ImageryLayer = viewer.imageryLayers.addImageryProvider(
+        nightProvider
+      );
+      nightLayer.alpha = 0.0;
 
-      // 🔍 Barra di ricerca
-      const geocoder = new MapboxGeocoder({
-  accessToken: mapboxgl.accessToken,
-  // @ts-ignore
-  mapboxgl,
-  marker: false,
-  placeholder: "Cerca luogo...",
-  proximity: { longitude: 12, latitude: 20 },
-  countries: "it,fr,de,gb,es,pt,us,ca",
-});
+      // 🔭 Limita zoom (niente livello strada)
+      const controller = viewer.scene.screenSpaceCameraController;
+      controller.minimumZoomDistance = 1_000_000;
+      controller.maximumZoomDistance = 25_000_000;
+      controller.enableCollisionDetection = true;
 
-      map.addControl(geocoder);
+      // ——— SWITCH AUTOMATICO LABELS ———
+      const LABELS_ON_HEIGHT = 2_200_000; // Mostra confini sotto i 2200 km
+      const NIGHT_BLEND_MIN = 0.1;
+      const NIGHT_BLEND_MAX = 0.7;
 
-      // 🧭 Controlli base
-      map.addControl(new mapboxgl.NavigationControl({ showCompass: true }), "bottom-right");
-      map.addControl(new mapboxgl.ScaleControl({ unit: "metric" }), "bottom-left");
+      function updateLayers() {
+        const height = viewer.camera.positionCartographic.height;
 
-      return () => map.remove();
+        // Gestione confini
+        const targetAlpha = height < LABELS_ON_HEIGHT ? 1.0 : 0.0;
+        layerLabels.alpha += (targetAlpha - layerLabels.alpha) * 0.15;
+
+        // Calcola posizione del Sole e blend notte in base alla luce reale
+        const now = JulianDate.now();
+        viewer.scene.globe.enableLighting = true;
+        const sunlightDir = viewer.scene.sunDirection;
+        const lightIntensity = Math.max(0.0, sunlightDir.z); // z = intensità verso camera
+        const targetNightAlpha = NIGHT_BLEND_MAX - lightIntensity * (NIGHT_BLEND_MAX - NIGHT_BLEND_MIN);
+        nightLayer.alpha += (targetNightAlpha - nightLayer.alpha) * 0.05;
+
+        viewer.scene.requestRender();
+      }
+
+      viewer.scene.postRender.addEventListener(updateLayers);
+
+      // 🌍 Posizione iniziale (centrata su Africa/Europa)
+      viewer.camera.flyTo({
+        destination: Cartesian3.fromDegrees(12.0, 20.0, 12_000_000),
+        orientation: {
+          heading: CMath.toRadians(-10),
+          pitch: CMath.toRadians(-25),
+          roll: 0,
+        },
+        duration: 2.0,
+      });
+    })();
+
+    return () => {
+      if (viewer && !viewer.isDestroyed()) viewer.destroy();
     };
-
-    loadMap();
   }, []);
 
   return (
     <div style={{ width: "100vw", height: "100vh", position: "relative" }}>
-      <div ref={mapContainerRef} style={{ width: "100%", height: "100%" }} />
-
-      {/* 🔘 Pulsanti angolari */}
-      <button
-        onClick={() => router.push("/profile")}
-        style={{
-          position: "absolute",
-          top: "20px",
-          left: "20px",
-          padding: "10px 20px",
-          borderRadius: "8px",
-          border: "none",
-          background: "#004080",
-          color: "white",
-          cursor: "pointer",
-          fontWeight: 600,
-        }}
-      >
-        👤 Profilo
-      </button>
-
-      <button
-        onClick={() => router.push("/login")}
-        style={{
-          position: "absolute",
-          top: "20px",
-          right: "20px",
-          padding: "10px 20px",
-          borderRadius: "8px",
-          border: "none",
-          background: "#ff4444",
-          color: "white",
-          cursor: "pointer",
-          fontWeight: 600,
-        }}
-      >
-        🚪 Esci
-      </button>
+      <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
     </div>
   );
 }
-// ⬆️ FINE BLOCCO 5.8.2
+// ⬆️ FINE BLOCCO 6.1

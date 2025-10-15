@@ -7,7 +7,8 @@
     "build": "next build --turbo",
     "start": "next start",
     "lint": "eslint",
-    "deploy": "git add . && git commit -m \"🚀 Auto-deploy: %date% %time%\" && git push"
+    "deploy": "git add . && git commit -m \"🚀 Auto-deploy: %date% %time%\" && git push",
+    "postinstall": "node scripts/copy-cesium.js"
   },
   "dependencies": {
     "@cesium/engine": "^21.0.1",
@@ -32,4 +33,7 @@
     "@types/suncalc": "^1.9.2",
     "typescript": "^5.9.3"
   }
-}
+  }
+
+ 
+
