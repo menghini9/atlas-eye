@@ -37,15 +37,16 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["cesium"],
 
   // 🌐 Reindirizzamento automatico base (opzionale, se vuoi mantenerlo)
-  async redirects() {
-    return [
-      {
-        source: "/",
-        destination: "https://atlas-eye.vercel.app/:path*",
-        permanent: true,
-      },
-    ];
-  },
+async redirects() {
+  return [
+    {
+      source: "/",
+      destination: "/profile", // oppure /map se vuoi che apra subito la mappa
+      permanent: false,
+    },
+  ];
+},
+
 };
 
 export default nextConfig;
