@@ -15,35 +15,32 @@ const nextConfig: NextConfig = {
   },
 
   // ⚙️ Configurazione Webpack: Cesium richiede alias e fallback per moduli Node
-  webpack: (config, { isServer }) => {
-    // 🔧 Alias: forza Cesium a puntare al build corretto (non @cesium/engine)
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      cesium: path.resolve(__dirname, "node_modules/cesium/Build/Cesium"),
-    };
+// ⚙️ Configurazione Webpack — Cesium richiede alias e fallback node
+webpack: (config) => {
+  config.resolve.alias = {
+    ...config.resolve.alias,
+    cesium: "@cesium/engine",
+  };
 
-    // 🔒 Disattiva moduli server-side non usabili nel browser
-    config.resolve.fallback = {
-      fs: false,
-      path: false,
-      http: false,
-      https: false,
-      zlib: false,
-    };
+  config.resolve.fallback = {
+    fs: false,
+    path: false,
+    http: false,
+    https: false,
+    zlib: false,
+  };
 
-    // 🧱 Permette l’import dinamico con top-level await
-    config.experiments = {
-      ...config.experiments,
-      topLevelAwait: true,
-    };
+  return config;
+},
 
-    return config;
-  },
+// 🚀 Nuova sintassi Next.js 15.5+ — import pacchetti server-side ESM (come Cesium)
+serverExternalPackages: ["cesium"],
 
-  // 🧰 Esperimenti necessari per pacchetti non ESM puri (come Cesium)
-  experimental: {
-    serverComponentsExternalPackages: ["cesium"],
-  },
+// 🧱 Disabilita Turbopack (già disattivato anche via package.json)
+experimental: {
+  optimizeCss: true,
+},
+
 };
 
 export default nextConfig;
