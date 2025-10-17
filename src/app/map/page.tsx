@@ -3,7 +3,8 @@
 
 import { useEffect, useRef } from "react";
 import * as Cesium from "cesium";
-import "cesium/Build/Widgets/widgets.css";
+import "@cesium/widgets/css/widgets.css";
+
 
 export default function MapPage() {
   const containerRef = useRef<HTMLDivElement | null>(null);
