@@ -1,42 +1,26 @@
-// ⬇️ BLOCCO 6.1 — Cesium Orbital Earth (realistico + API key Cesium)
+// ⬇️ BLOCCO 6.3 — Cesium 1.134.1 + Next 15 compatibile
 "use client";
 
 import { useEffect, useRef } from "react";
+import * as Cesium from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
-
 
 export default function MapPage() {
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    let viewer: any;
+    let viewer: Cesium.Viewer | undefined;
 
     (async () => {
-      // ⚙️ Importa Cesium solo lato client
-      const Cesium = await import("cesium");
-      const {
-        Ion,
-        Viewer,
-        createWorldTerrain,
-        IonWorldImageryStyle,
-        createWorldImagery,
-        Cartesian3,
-        Math: CMath,
-        SunLight,
-        JulianDate,
-        SceneMode,
-        UrlTemplateImageryProvider,
-        ImageryLayer,
-      } = Cesium as any;
-
-      // 🌍 Base URL per gli asset Cesium (richiesti in /public/cesium)
+      // 🌍 Base URL per asset Cesium (in /public/cesium)
       (window as any).CESIUM_BASE_URL = "/cesium";
 
-      // 🔑 Imposta la chiave Cesium Ion
-      Ion.defaultAccessToken = process.env.NEXT_PUBLIC_CESIUM_API_KEY || "";
+      // 🔑 Chiave API Cesium Ion
+      Cesium.Ion.defaultAccessToken =
+        process.env.NEXT_PUBLIC_CESIUM_API_KEY || "";
 
-      // 🪐 Crea il viewer (senza UI extra)
-      viewer = new Viewer(containerRef.current!, {
+      // ✅ Crea il viewer
+      viewer = new Cesium.Viewer(containerRef.current!, {
         animation: false,
         timeline: false,
         baseLayerPicker: false,
@@ -47,79 +31,75 @@ export default function MapPage() {
         fullscreenButton: false,
         infoBox: false,
         selectionIndicator: false,
-        terrainProvider: createWorldTerrain(),
+        terrainProvider: await Cesium.createWorldTerrainAsync(),
         useBrowserRecommendedResolution: true,
         requestRenderMode: true,
         maximumRenderTimeChange: 0.0,
       });
 
-      // 🌞 Attiva illuminazione solare realistica
+      // ☀️ Abilita luce e atmosfera
       viewer.scene.globe.enableLighting = true;
-      viewer.scene.light = new SunLight();
       viewer.scene.globe.dynamicAtmosphereLighting = true;
       viewer.scene.globe.showGroundAtmosphere = true;
 
-      // ——— LIVELLI IMMAGINI ———
-      // 1️⃣ AERIAL (fotorealistico, senza confini)
+      // 🗺️ Livelli immagini
       const layerAerial = viewer.imageryLayers.addImageryProvider(
-        createWorldImagery({ style: IonWorldImageryStyle.AERIAL })
+        await Cesium.createWorldImageryAsync({
+          style: Cesium.IonWorldImageryStyle.AERIAL,
+        })
       );
-      layerAerial.alpha = 1.0;
 
-      // 2️⃣ AERIAL + LABELS (visibile solo da vicino)
       const layerLabels = viewer.imageryLayers.addImageryProvider(
-        createWorldImagery({ style: IonWorldImageryStyle.AERIAL_WITH_LABELS })
+        await Cesium.createWorldImageryAsync({
+          style: Cesium.IonWorldImageryStyle.AERIAL_WITH_LABELS,
+        })
       );
       layerLabels.alpha = 0.0;
 
-      // 3️⃣ LAYER NOTTURNO (NASA VIIRS, overlay realistico)
-      const nightProvider = new UrlTemplateImageryProvider({
+      // 🌙 Livello notturno (NASA VIIRS)
+      const nightProvider = new Cesium.UrlTemplateImageryProvider({
         url: "https://tiles.arcgis.com/tiles/wlVTGRSYTzAbjjiC/arcgis/rest/services/VIIRS_2023_Global/MapServer/tile/{z}/{y}/{x}",
-        tilingScheme: viewer.scene.globe.ellipsoid.tilingScheme,
+        tilingScheme: Cesium.GeographicTilingScheme ? new Cesium.GeographicTilingScheme() : undefined,
         maximumLevel: 8,
       });
-      const nightLayer: typeof ImageryLayer = viewer.imageryLayers.addImageryProvider(
-        nightProvider
-      );
+
+      const nightLayer = viewer.imageryLayers.addImageryProvider(nightProvider);
       nightLayer.alpha = 0.0;
 
-      // 🔭 Limita zoom (niente livello strada)
-      const controller = viewer.scene.screenSpaceCameraController;
-      controller.minimumZoomDistance = 1_000_000;
-      controller.maximumZoomDistance = 25_000_000;
-      controller.enableCollisionDetection = true;
+      // 🔭 Zoom limits
+      const c = viewer.scene.screenSpaceCameraController;
+      c.minimumZoomDistance = 1_000_000;
+      c.maximumZoomDistance = 25_000_000;
 
-      // ——— SWITCH AUTOMATICO LABELS ———
-      const LABELS_ON_HEIGHT = 2_200_000; // Mostra confini sotto i 2200 km
+      // 🌗 Transizioni giorno/notte e labels
+      const LABELS_ON_HEIGHT = 2_200_000;
       const NIGHT_BLEND_MIN = 0.1;
       const NIGHT_BLEND_MAX = 0.7;
 
       function updateLayers() {
-        const height = viewer.camera.positionCartographic.height;
-
-        // Gestione confini
+        const height = viewer!.camera.positionCartographic.height;
         const targetAlpha = height < LABELS_ON_HEIGHT ? 1.0 : 0.0;
         layerLabels.alpha += (targetAlpha - layerLabels.alpha) * 0.15;
 
-        // Calcola posizione del Sole e blend notte in base alla luce reale
-        const now = JulianDate.now();
-        viewer.scene.globe.enableLighting = true;
-        const sunlightDir = viewer.scene.sunDirection;
-        const lightIntensity = Math.max(0.0, sunlightDir.z); // z = intensità verso camera
-        const targetNightAlpha = NIGHT_BLEND_MAX - lightIntensity * (NIGHT_BLEND_MAX - NIGHT_BLEND_MIN);
+        const sunlightDir =
+          (viewer!.scene as any).sunLight?.direction || new Cesium.Cartesian3(0, 0, 1);
+        const lightIntensity = Math.max(0.0, sunlightDir.z);
+        const targetNightAlpha =
+          NIGHT_BLEND_MAX -
+          lightIntensity * (NIGHT_BLEND_MAX - NIGHT_BLEND_MIN);
         nightLayer.alpha += (targetNightAlpha - nightLayer.alpha) * 0.05;
 
-        viewer.scene.requestRender();
+        viewer!.scene.requestRender();
       }
 
       viewer.scene.postRender.addEventListener(updateLayers);
 
-      // 🌍 Posizione iniziale (centrata su Africa/Europa)
+      // 🌍 Posizione iniziale
       viewer.camera.flyTo({
-        destination: Cartesian3.fromDegrees(12.0, 20.0, 12_000_000),
+        destination: Cesium.Cartesian3.fromDegrees(12.0, 20.0, 12_000_000),
         orientation: {
-          heading: CMath.toRadians(-10),
-          pitch: CMath.toRadians(-25),
+          heading: Cesium.Math.toRadians(-10),
+          pitch: Cesium.Math.toRadians(-25),
           roll: 0,
         },
         duration: 2.0,
@@ -137,4 +117,4 @@ export default function MapPage() {
     </div>
   );
 }
-// ⬆️ FINE BLOCCO 6.1
+// ⬆️ FINE BLOCCO 6.3

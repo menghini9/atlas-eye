@@ -1,30 +1,37 @@
-// ⬇️ BLOCCO 5.7.2 — Configurazione Cesium aggiornata per Next 15.5
+// ⬇️ BLOCCO 5.9 — Configurazione definitiva Next 15 + Cesium (Webpack compatibile)
 import type { NextConfig } from "next";
 import path from "path";
 
 const nextConfig: NextConfig = {
-  // ✅ Gestione Webpack per compatibilità Cesium
+  // 🔁 Redirect iniziale (puoi cambiarlo in /map se vuoi aprire direttamente la mappa)
+  async redirects() {
+    return [
+      {
+        source: "/",
+        destination: "/profile",
+        permanent: false,
+      },
+    ];
+  },
+
+  // ⚙️ Configurazione Webpack: Cesium richiede alias e fallback per moduli Node
   webpack: (config, { isServer }) => {
-    // 📦 Alias per Cesium — corregge percorsi assoluti tipo /ROOT/...
+    // 🔧 Alias: forza Cesium a puntare al build corretto (non @cesium/engine)
     config.resolve.alias = {
       ...config.resolve.alias,
-      cesium: path.resolve(__dirname, "node_modules/cesium/Source"),
+      cesium: path.resolve(__dirname, "node_modules/cesium/Build/Cesium"),
     };
 
-    // 🚫 Disabilita moduli Node non utilizzabili lato client
+    // 🔒 Disattiva moduli server-side non usabili nel browser
     config.resolve.fallback = {
       fs: false,
       path: false,
       http: false,
       https: false,
       zlib: false,
-      url: false,
     };
 
-    // 🧱 Esclude Cesium dalle build server-side
-    config.externals = [...(config.externals || []), "cesium"];
-
-    // ⚙️ Abilita top-level await (necessario per Cesium)
+    // 🧱 Permette l’import dinamico con top-level await
     config.experiments = {
       ...config.experiments,
       topLevelAwait: true,
@@ -33,21 +40,11 @@ const nextConfig: NextConfig = {
     return config;
   },
 
-  // 🚀 Permette a Cesium di essere importato correttamente lato client
-  serverExternalPackages: ["cesium"],
-
-  // 🌐 Reindirizzamento automatico base (opzionale, se vuoi mantenerlo)
-async redirects() {
-  return [
-    {
-      source: "/",
-      destination: "/profile", // oppure /map se vuoi che apra subito la mappa
-      permanent: false,
-    },
-  ];
-},
-
+  // 🧰 Esperimenti necessari per pacchetti non ESM puri (come Cesium)
+  experimental: {
+    serverComponentsExternalPackages: ["cesium"],
+  },
 };
 
 export default nextConfig;
-// ⬆️ FINE BLOCCO 5.7.2
+// ⬆️ FINE BLOCCO 5.9
