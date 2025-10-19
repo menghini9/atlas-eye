@@ -1,7 +1,6 @@
-// ⬇️ BLOCCO 9.5 — Cesium funzionante con import completo
+// ⬇️ BLOCCO 10.7 — Cesium funzionante su Next 15.5 + Engine moderno
 "use client";
 import { useEffect, useRef } from "react";
-//import "../../public/cesium/Widgets/widgets.css";
 
 export default function MapPage() {
   const mapRef = useRef<HTMLDivElement>(null);
@@ -11,33 +10,41 @@ export default function MapPage() {
 
     const initCesium = async () => {
       try {
-        // 🔧 Import dinamico dal pacchetto principale
+        // Importa il namespace Cesium completo
         const Cesium = await import("cesium");
+        const Engine = await import("@cesium/engine");
+        const Widgets = await import("@cesium/widgets");
 
-        // 🔑 Token e base URL
-        Cesium.Ion.defaultAccessToken = process.env.NEXT_PUBLIC_CESIUM_ION_TOKEN || "";
-        (window as any).CESIUM_BASE_URL = "/";
+        // Imposta token e path base
+        (Engine as any).Ion.defaultAccessToken =
+          process.env.NEXT_PUBLIC_CESIUM_TOKEN || "";
+        (window as any).CESIUM_BASE_URL = "/cesium";
 
-        // 🌍 Inizializza il Viewer 3D
+        // Usa Viewer dal namespace corretto
+        const CesiumViewer = (Widgets as any).Viewer || (Engine as any).Viewer;
+
+        if (!CesiumViewer) {
+          throw new Error("❌ Viewer non trovato nei moduli Cesium!");
+        }
+
+        // Crea viewer solo se esiste il container
         if (mapRef.current) {
-          viewer = new Cesium.Viewer(mapRef.current, {
+          viewer = new CesiumViewer(mapRef.current, {
             baseLayerPicker: false,
             animation: false,
             timeline: false,
-            terrainProvider: await Cesium.createWorldTerrainAsync(),
+            terrainProvider: await (Engine as any).createWorldTerrainAsync(),
           });
 
-          // 🛰️ Layer satellitare globale
-          const imageryProvider = await Cesium.IonImageryProvider.fromAssetId(2);
+          // Layer satellitare
+          const imageryProvider = await (Engine as any).IonImageryProvider.fromAssetId(2);
           viewer.imageryLayers.removeAll();
           viewer.imageryLayers.addImageryProvider(imageryProvider);
 
-          // 🧭 Visuale iniziale su Roma
+          // Vista iniziale su Roma 🌍
           viewer.camera.flyTo({
-            destination: Cesium.Cartesian3.fromDegrees(12.5, 41.9, 2500000),
+            destination: (Engine as any).Cartesian3.fromDegrees(12.5, 41.9, 2500000),
           });
-
-          console.log("✅ Cesium caricato correttamente");
         }
       } catch (err) {
         console.error("❌ Errore inizializzazione Cesium:", err);
@@ -46,16 +53,14 @@ export default function MapPage() {
 
     initCesium();
 
-    // 🧹 Distruzione viewer al dismount
     return () => {
-      if (viewer && !viewer.isDestroyed()) viewer.destroy();
+      if (viewer && viewer.destroy && !viewer.isDestroyed()) viewer.destroy();
     };
   }, []);
 
   return (
     <div
       ref={mapRef}
-      id="cesiumContainer"
       style={{
         width: "100vw",
         height: "100vh",
@@ -65,4 +70,4 @@ export default function MapPage() {
     />
   );
 }
-// ⬆️ FINE BLOCCO 9.5
+// ⬆️ FINE BLOCCO 10.7
