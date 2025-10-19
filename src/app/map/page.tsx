@@ -1,7 +1,7 @@
 // ⬇️ BLOCCO 9.5 — Cesium funzionante con import completo
 "use client";
 import { useEffect, useRef } from "react";
-import "cesium/Build/Cesium/Widgets/widgets.css";
+//import "../../public/cesium/Widgets/widgets.css";
 
 export default function MapPage() {
   const mapRef = useRef<HTMLDivElement>(null);
