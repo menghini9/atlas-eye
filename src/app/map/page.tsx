@@ -14,7 +14,10 @@ export default function MapPage() {
     let map: any = null;
 
     const init = async () => {
-      const Cesium = await import("cesium").then(m => m.default || m);
+      const mod = await import("cesium");
+const Cesium: any = (mod as any).default?.Viewer ? (mod as any).default : mod;
+console.log("Cesium importato correttamente:", !!Cesium.Viewer);
+
 
       const {
         Ion,
