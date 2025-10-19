@@ -1,4 +1,4 @@
-// ⬇️ BLOCCO 9.2 — MapPage definitivo (Cesium + Next 15 compatibile)
+// ⬇️ BLOCCO 9.4 — Cesium funzionante su Next 15.5 + Vercel (build stabile)
 "use client";
 import { useEffect, useRef } from "react";
 
@@ -8,39 +8,43 @@ export default function MapPage() {
   useEffect(() => {
     let viewer: any;
 
-    // funzione asincrona per caricare Cesium solo lato client
     const initCesium = async () => {
       try {
+        // Importa i moduli base dal pacchetto completo
         const Cesium = await import("cesium");
 
-        // token Cesium Ion (metti il tuo in .env.local)
+        // Imposta token e percorso base
         Cesium.Ion.defaultAccessToken =
           process.env.NEXT_PUBLIC_CESIUM_ION_TOKEN || "";
-
-        // base URL per gli asset statici Cesium
         (window as any).CESIUM_BASE_URL = "/";
 
         if (mapRef.current) {
-          // Crea il viewer base
+          // Crea il viewer 3D
           viewer = new Cesium.Viewer(mapRef.current, {
             baseLayerPicker: false,
-            timeline: false,
             animation: false,
+            timeline: false,
+            terrainProvider: await Cesium.createWorldTerrainAsync(),
           });
 
-          // Carica layer satellitare (assetId 2 = Bing Maps global imagery)
-          const provider = await Cesium.IonImageryProvider.fromAssetId(2);
+          // Layer satellitare globale
+          const imageryProvider = await Cesium.IonImageryProvider.fromAssetId(2);
           viewer.imageryLayers.removeAll();
-          viewer.imageryLayers.addImageryProvider(provider);
+          viewer.imageryLayers.addImageryProvider(imageryProvider);
+
+          // Imposta la visuale iniziale sull’Europa
+          viewer.camera.flyTo({
+            destination: Cesium.Cartesian3.fromDegrees(12.5, 41.9, 2500000), // Roma
+          });
         }
       } catch (err) {
-        console.error("Errore inizializzazione Cesium:", err);
+        console.error("❌ Errore inizializzazione Cesium:", err);
       }
     };
 
     initCesium();
 
-    // cleanup quando la pagina viene chiusa o ricaricata
+    // cleanup
     return () => {
       if (viewer && !viewer.isDestroyed()) viewer.destroy();
     };
@@ -58,4 +62,4 @@ export default function MapPage() {
     />
   );
 }
-// ⬆️ FINE BLOCCO 9.2
+// ⬆️ FINE BLOCCO 9.4
