@@ -1,4 +1,4 @@
-// ⬇️ BLOCCO 11.4 — Atlas Eye Hybrid Ultra+ (Atlante + Luci + Fullscreen)
+// ⬇️ BLOCCO 11.6 — Atlas Eye Real Hybrid (Atlante + Luci + Fullscreen)
 "use client";
 
 import { useEffect, useRef } from "react";
@@ -7,14 +7,14 @@ import mapboxgl from "mapbox-gl";
 export default function MapPage() {
   const cesiumRef = useRef<HTMLDivElement>(null);
   const mapboxRef = useRef<HTMLDivElement>(null);
+  const uiRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let viewer: any = null;
     let map: any = null;
 
     const init = async () => {
-      const CesiumEngine = await import("@cesium/engine");
-      const CesiumWidgets = await import("@cesium/widgets");
+      const Cesium = await import("cesium");
       const {
         Ion,
         IonImageryProvider,
@@ -23,18 +23,15 @@ export default function MapPage() {
         Color,
         Cartesian3,
         UrlTemplateImageryProvider,
-        SunLight,
         SceneMode,
-        WebMercatorProjection,
-      } = CesiumEngine;
-      const { Viewer } = CesiumWidgets;
+      } = Cesium;
 
       (window as any).CESIUM_BASE_URL = "/cesium";
       Ion.defaultAccessToken = process.env.NEXT_PUBLIC_CESIUM_TOKEN || "";
       mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
-      // ✅ Inizializza Cesium (2D abilitato)
-      viewer = new Viewer(cesiumRef.current!, {
+      // ✅ Viewer Cesium principale
+      viewer = new Cesium.Viewer(cesiumRef.current!, {
         animation: false,
         timeline: false,
         baseLayerPicker: false,
@@ -46,59 +43,45 @@ export default function MapPage() {
         infoBox: false,
         selectionIndicator: false,
         creditContainer: document.createElement("div"),
-        scene3DOnly: false, // ⚡ permette anche la vista 2D
-        mapProjection: new WebMercatorProjection(),
+        scene3DOnly: false,
         terrainProvider: await createWorldTerrainAsync(),
       });
 
+      // ✅ Aspetto scena
       viewer.scene.skyAtmosphere = new SkyAtmosphere();
       viewer.scene.backgroundColor = Color.BLACK;
       viewer.scene.globe.enableLighting = true;
-      viewer.scene.light = new SunLight();
+      viewer.scene.globe.depthTestAgainstTerrain = true;
 
-      // ✅ Layers
-      const satLayer = await IonImageryProvider.fromAssetId(2);
-      const labelsLayer = await IonImageryProvider.fromAssetId(3);
-
-      // 🌃 Nuova texture notturna NASA (affidabile)
-      const nightLayer = new UrlTemplateImageryProvider({
-        url: "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_CityLights_2012/default/{Time}/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}.jpg",
-        credit: "NASA Blue Marble Night",
-        maximumLevel: 8,
-      });
-
+      // ✅ Layer principali
+      const sat = await IonImageryProvider.fromAssetId(2);
+      const labels = await IonImageryProvider.fromAssetId(3);
       viewer.imageryLayers.removeAll();
-      viewer.imageryLayers.addImageryProvider(satLayer);
-      viewer.imageryLayers.addImageryProvider(labelsLayer);
-      const night = viewer.imageryLayers.addImageryProvider(nightLayer);
-      night.alpha = 0.0;
+      viewer.imageryLayers.addImageryProvider(sat);
+      viewer.imageryLayers.addImageryProvider(labels);
 
-      // ✅ Zoom limits
+      // 🌃 Aggiunge luci urbane notturne (NASA)
+      setTimeout(() => {
+        const night = new UrlTemplateImageryProvider({
+          url: "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_CityLights_2012/default/2012-01-01/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg",
+          credit: "NASA City Lights",
+        });
+        const layer = viewer.imageryLayers.addImageryProvider(night);
+        layer.alpha = 0.25; // visibile ma sottile
+      }, 1000);
+
+      // ✅ Limiti di zoom
       const ctrl = viewer.scene.screenSpaceCameraController;
       ctrl.minimumZoomDistance = 300000;
-      ctrl.maximumZoomDistance = 25000000;
+      ctrl.maximumZoomDistance = 20000000;
 
-      // ✅ Transizione fluida + switch Cesium/Mapbox
-      viewer.scene.postRender.addEventListener(() => {
-        const sun = viewer.scene.light?.direction;
-        if (sun) {
-          const targetAlpha = Math.max(0, 1 - sun.z);
-          night.alpha += (targetAlpha * 0.9 - night.alpha) * 0.05;
-        }
-
-        const h = viewer.camera.positionCartographic.height;
-        const c = cesiumRef.current!;
-        const m = mapboxRef.current!;
-        c.style.display = h < 300000 ? "none" : "block";
-        m.style.display = h < 300000 ? "block" : "none";
-      });
-
+      // ✅ Volo iniziale
       viewer.camera.flyTo({
         destination: Cartesian3.fromDegrees(12.5, 41.9, 2500000),
-        duration: 2.5,
+        duration: 2,
       });
 
-      // ✅ Mapbox base
+      // ✅ Mapbox per viste ravvicinate
       map = new mapboxgl.Map({
         container: mapboxRef.current!,
         style: "mapbox://styles/mapbox/satellite-streets-v12",
@@ -109,55 +92,94 @@ export default function MapPage() {
         antialias: true,
       });
 
-      // 🖥️ Schermo intero condiviso
-      const fullBtn = document.createElement("button");
-      fullBtn.innerText = "⛶";
-      Object.assign(fullBtn.style, {
-        position: "absolute",
-        bottom: "20px",
-        right: "20px",
-        fontSize: "20px",
-        background: "rgba(20,20,25,0.8)",
-        color: "#fff",
-        border: "none",
-        borderRadius: "6px",
-        padding: "5px 10px",
-        cursor: "pointer",
-        zIndex: "1000",
+      // 🔄 Transizione Cesium ↔ Mapbox
+      viewer.scene.postRender.addEventListener(() => {
+        const h = viewer.camera.positionCartographic.height;
+        if (cesiumRef.current && mapboxRef.current) {
+          cesiumRef.current.style.display = h < 400000 ? "none" : "block";
+          mapboxRef.current.style.display = h < 400000 ? "block" : "none";
+        }
       });
-      fullBtn.onclick = () => {
+
+      // ✅ Gestione UI
+      const ui = uiRef.current!;
+      ui.innerHTML = `
+        <div id="atlas-ui" style="
+          position: absolute;
+          top: 0; left: 0; right: 0;
+          padding: 20px;
+          display: flex;
+          justify-content: space-between;
+          align-items: start;
+          z-index: 1000;
+        ">
+          <div style="display:flex;gap:10px">
+            <div style="background:rgba(10,10,20,0.8);padding:6px 10px;border-radius:8px;color:white;">
+              <b>Vista:</b>
+              <select id="viewMode" style="background:#111;color:#fff;border-radius:6px;padding:2px 5px;">
+                <option value="globe" selected>Globo</option>
+                <option value="flat">Atlante</option>
+              </select>
+            </div>
+          </div>
+
+          <input id="search" placeholder="Cerca luogo..." 
+            style="padding:8px 14px;border-radius:8px;border:1px solid #555;width:280px;background:rgba(15,15,20,0.8);color:white;"/>
+
+          <div style="display:flex;gap:10px">
+            <div style="background:rgba(10,10,20,0.8);padding:6px 10px;border-radius:8px;color:white;">
+              <b>Stile:</b>
+              <select id="styleMode" style="background:#111;color:#fff;border-radius:6px;padding:2px 5px;">
+                <option value="satellite">Satellite</option>
+                <option value="hybrid" selected>Ibrida</option>
+              </select>
+            </div>
+            <button id="fullscreen" style="
+              background:rgba(20,20,25,0.9);
+              color:white;
+              border:none;
+              border-radius:6px;
+              padding:6px 10px;
+              font-size:16px;
+              cursor:pointer;">⛶</button>
+          </div>
+        </div>
+      `;
+
+      // 🔘 Pulsante schermo intero
+      const fs = ui.querySelector("#fullscreen")!;
+      fs.addEventListener("click", () => {
         if (!document.fullscreenElement) {
           document.documentElement.requestFullscreen();
         } else {
           document.exitFullscreen();
         }
-      };
-      document.body.appendChild(fullBtn);
-
-      // ✅ Barra di ricerca
-      const search = document.createElement("input");
-      Object.assign(search, {
-        placeholder: "Cerca luogo...",
       });
-      Object.assign(search.style, {
-        position: "absolute",
-        top: "20px",
-        left: "50%",
-        transform: "translateX(-50%)",
-        padding: "8px 14px",
-        borderRadius: "8px",
-        border: "1px solid #555",
-        width: "280px",
-        background: "rgba(15,15,20,0.8)",
-        color: "#fff",
-        fontSize: "14px",
-        zIndex: "1000",
-      });
-      document.body.appendChild(search);
 
+      // 🔘 Cambio vista (Globo ↔ Atlante)
+      const viewSel = ui.querySelector("#viewMode")!;
+      viewSel.addEventListener("change", (e: any) => {
+        if (e.target.value === "flat") {
+          viewer.scene.morphTo2D(1.5);
+        } else {
+          viewer.scene.morphTo3D(1.5);
+        }
+      });
+
+      // 🔘 Cambio stile
+      const styleSel = ui.querySelector("#styleMode")!;
+      styleSel.addEventListener("change", (e: any) => {
+        const v = e.target.value;
+        viewer.imageryLayers.removeAll();
+        viewer.imageryLayers.addImageryProvider(sat);
+        if (v === "hybrid") viewer.imageryLayers.addImageryProvider(labels);
+      });
+
+      // 🔍 Ricerca
+      const search = ui.querySelector("#search")!;
       search.addEventListener("keydown", async (e: any) => {
         if (e.key === "Enter") {
-          const q = search.value.trim();
+          const q = (search as HTMLInputElement).value.trim();
           if (!q) return;
           const r = await fetch(
             `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
@@ -165,9 +187,9 @@ export default function MapPage() {
             )}.json?access_token=${mapboxgl.accessToken}`
           );
           const d = await r.json();
-          const place = d.features?.[0];
-          if (!place) return;
-          const [lon, lat] = place.center;
+          const p = d.features?.[0];
+          if (!p) return;
+          const [lon, lat] = p.center;
           if (mapboxRef.current!.style.display === "block") {
             map.flyTo({ center: [lon, lat], zoom: 6 });
           } else {
@@ -178,95 +200,17 @@ export default function MapPage() {
           }
         }
       });
-
-      // ✅ Stile (satellite / ibrido)
-      const styleBox = document.createElement("div");
-      Object.assign(styleBox.style, {
-        position: "absolute",
-        top: "20px",
-        right: "20px",
-        background: "rgba(10,10,20,0.8)",
-        padding: "6px 10px",
-        borderRadius: "8px",
-        color: "#fff",
-        zIndex: "1000",
-        fontSize: "13px",
-      });
-      styleBox.innerHTML = `
-        <b>Stile:</b>
-        <select id="mapStyle" style="margin-left:6px;padding:2px 5px;border-radius:6px;background:#111;color:#fff;">
-          <option value="satellite">Satellite</option>
-          <option value="hybrid" selected>Ibrida</option>
-        </select>
-      `;
-      document.body.appendChild(styleBox);
-
-      const styleSel = document.getElementById("mapStyle") as HTMLSelectElement;
-      styleSel.addEventListener("change", async () => {
-        const v = styleSel.value;
-        viewer.imageryLayers.removeAll();
-        if (v === "satellite") {
-          viewer.imageryLayers.addImageryProvider(satLayer);
-        } else {
-          viewer.imageryLayers.addImageryProvider(satLayer);
-          viewer.imageryLayers.addImageryProvider(labelsLayer);
-        }
-        viewer.imageryLayers.addImageryProvider(nightLayer);
-
-        map.setStyle(
-          v === "satellite"
-            ? "mapbox://styles/mapbox/satellite-v9"
-            : "mapbox://styles/mapbox/satellite-streets-v12"
-        );
-      });
-
-      // ✅ Vista (Globo ↔ Atlante)
-      const viewBox = document.createElement("div");
-      Object.assign(viewBox.style, {
-        position: "absolute",
-        top: "20px",
-        left: "20px",
-        background: "rgba(10,10,20,0.8)",
-        padding: "6px 10px",
-        borderRadius: "8px",
-        color: "#fff",
-        zIndex: "1000",
-        fontSize: "13px",
-      });
-      viewBox.innerHTML = `
-        <b>Vista:</b>
-        <select id="viewMode" style="margin-left:6px;padding:2px 5px;border-radius:6px;background:#111;color:#fff;">
-          <option value="globe">Globo</option>
-          <option value="flat">Atlante</option>
-        </select>
-      `;
-      document.body.appendChild(viewBox);
-
-      const viewSel = document.getElementById("viewMode") as HTMLSelectElement;
-      viewSel.addEventListener("change", () => {
-        if (viewSel.value === "flat") {
-          viewer.scene.morphTo2D(1.5);
-        } else {
-          viewer.scene.morphTo3D(1.5);
-        }
-      });
-
-      console.log("🌍 Atlas Eye Hybrid Ultra+ attivo");
     };
 
     init();
-
-    return () => {
-      if (viewer && !viewer.isDestroyed()) viewer.destroy();
-      if (map) map.remove();
-    };
   }, []);
 
   return (
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden" }}>
       <div ref={cesiumRef} style={{ position: "absolute", inset: 0 }} />
-      <div ref={mapboxRef} style={{ position: "absolute", inset: 0 }} />
+      <div ref={mapboxRef} style={{ position: "absolute", inset: 0, display: "none" }} />
+      <div ref={uiRef} />
     </div>
   );
 }
-// ⬆️ FINE BLOCCO 11.4
+// ⬆️ FINE BLOCCO 11.6
