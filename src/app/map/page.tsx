@@ -1,4 +1,3 @@
-// ⬇️ BLOCCO 11.6 — Atlas Eye Real Hybrid (Atlante + Luci + Fullscreen)
 "use client";
 
 import { useEffect, useRef } from "react";
@@ -14,27 +13,27 @@ export default function MapPage() {
     let map: any = null;
 
     const init = async () => {
-      const mod = await import("cesium");
-const Cesium: any = (mod as any).default?.Viewer ? (mod as any).default : mod;
+      // ✅ Import Cesium robusto (compatibile Next.js 15 / Webpack 5)
+ let Cesium: any;
+
+try {
+  // ✅ Tentativo principale: modulo moderno
+  const mod = await import("cesium");
+  Cesium = (mod as any).Viewer ? mod : (mod as any).default ?? mod;
+} catch (err) {
+  console.error("❌ Errore durante l'import Cesium:", err);
+  Cesium = {};
+}
+
 console.log("Cesium importato correttamente:", !!Cesium.Viewer);
 
 
-      const {
-        Ion,
-        IonImageryProvider,
-        createWorldTerrainAsync,
-        SkyAtmosphere,
-        Color,
-        Cartesian3,
-        UrlTemplateImageryProvider,
-        SceneMode,
-      } = Cesium;
-
+      // ✅ Configurazioni chiavi
       (window as any).CESIUM_BASE_URL = "/cesium";
-      Ion.defaultAccessToken = process.env.NEXT_PUBLIC_CESIUM_TOKEN || "";
+      Cesium.Ion.defaultAccessToken = process.env.NEXT_PUBLIC_CESIUM_TOKEN || "";
       mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
-      // ✅ Viewer Cesium principale
+      // ✅ Crea il viewer Cesium
       viewer = new Cesium.Viewer(cesiumRef.current!, {
         animation: false,
         timeline: false,
@@ -46,46 +45,45 @@ console.log("Cesium importato correttamente:", !!Cesium.Viewer);
         sceneModePicker: false,
         infoBox: false,
         selectionIndicator: false,
-        creditContainer: document.createElement("div"),
-        scene3DOnly: false,
-        terrainProvider: await createWorldTerrainAsync(),
+        creditContainer: document.createElement("div"), // rimuove watermark
+        terrainProvider: await Cesium.createWorldTerrainAsync(),
       });
 
       // ✅ Aspetto scena
-      viewer.scene.skyAtmosphere = new SkyAtmosphere();
-      viewer.scene.backgroundColor = Color.BLACK;
+      viewer.scene.skyAtmosphere = new Cesium.SkyAtmosphere();
+      viewer.scene.backgroundColor = Cesium.Color.BLACK;
       viewer.scene.globe.enableLighting = true;
       viewer.scene.globe.depthTestAgainstTerrain = true;
 
-      // ✅ Layer principali
-      const sat = await IonImageryProvider.fromAssetId(2);
-      const labels = await IonImageryProvider.fromAssetId(3);
+      // ✅ Layer satellitare + etichette
+      const sat = await Cesium.IonImageryProvider.fromAssetId(2);
+      const labels = await Cesium.IonImageryProvider.fromAssetId(3);
       viewer.imageryLayers.removeAll();
       viewer.imageryLayers.addImageryProvider(sat);
       viewer.imageryLayers.addImageryProvider(labels);
 
-      // 🌃 Aggiunge luci urbane notturne (NASA)
+      // 🌃 Luci urbane notturne (NASA VIIRS)
       setTimeout(() => {
-        const night = new UrlTemplateImageryProvider({
+        const night = new Cesium.UrlTemplateImageryProvider({
           url: "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_CityLights_2012/default/2012-01-01/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg",
           credit: "NASA City Lights",
         });
-        const layer = viewer.imageryLayers.addImageryProvider(night);
-        layer.alpha = 0.25; // visibile ma sottile
-      }, 1000);
+        const nightLayer = viewer.imageryLayers.addImageryProvider(night);
+        nightLayer.alpha = 0.35;
+      }, 800);
 
-      // ✅ Limiti di zoom
+      // ✅ Limiti zoom
       const ctrl = viewer.scene.screenSpaceCameraController;
       ctrl.minimumZoomDistance = 300000;
       ctrl.maximumZoomDistance = 20000000;
 
       // ✅ Volo iniziale
       viewer.camera.flyTo({
-        destination: Cartesian3.fromDegrees(12.5, 41.9, 2500000),
+        destination: Cesium.Cartesian3.fromDegrees(12.5, 41.9, 2500000),
         duration: 2,
       });
 
-      // ✅ Mapbox per viste ravvicinate
+      // ✅ Mapbox (per viste ravvicinate)
       map = new mapboxgl.Map({
         container: mapboxRef.current!,
         style: "mapbox://styles/mapbox/satellite-streets-v12",
@@ -105,18 +103,14 @@ console.log("Cesium importato correttamente:", !!Cesium.Viewer);
         }
       });
 
-      // ✅ Gestione UI
+      // ✅ Interfaccia utente
       const ui = uiRef.current!;
       ui.innerHTML = `
         <div id="atlas-ui" style="
-          position: absolute;
-          top: 0; left: 0; right: 0;
-          padding: 20px;
-          display: flex;
-          justify-content: space-between;
-          align-items: start;
-          z-index: 1000;
-        ">
+          position:absolute;top:0;left:0;right:0;
+          padding:20px;
+          display:flex;justify-content:space-between;align-items:start;
+          z-index:1000;">
           <div style="display:flex;gap:10px">
             <div style="background:rgba(10,10,20,0.8);padding:6px 10px;border-radius:8px;color:white;">
               <b>Vista:</b>
@@ -150,7 +144,7 @@ console.log("Cesium importato correttamente:", !!Cesium.Viewer);
         </div>
       `;
 
-      // 🔘 Pulsante schermo intero
+      // ⛶ Schermo intero
       const fs = ui.querySelector("#fullscreen")!;
       fs.addEventListener("click", () => {
         if (!document.fullscreenElement) {
@@ -160,17 +154,15 @@ console.log("Cesium importato correttamente:", !!Cesium.Viewer);
         }
       });
 
-      // 🔘 Cambio vista (Globo ↔ Atlante)
+      // 🌍 Vista Globo ↔ Atlante
       const viewSel = ui.querySelector("#viewMode")!;
       viewSel.addEventListener("change", (e: any) => {
         if (e.target.value === "flat") {
           viewer.scene.morphTo2D(1.5);
-        } else {
-          viewer.scene.morphTo3D(1.5);
-        }
+        } else viewer.scene.morphTo3D(1.5);
       });
 
-      // 🔘 Cambio stile
+      // 🗺️ Cambio stile
       const styleSel = ui.querySelector("#styleMode")!;
       styleSel.addEventListener("change", (e: any) => {
         const v = e.target.value;
@@ -179,16 +171,14 @@ console.log("Cesium importato correttamente:", !!Cesium.Viewer);
         if (v === "hybrid") viewer.imageryLayers.addImageryProvider(labels);
       });
 
-      // 🔍 Ricerca
-      const search = ui.querySelector("#search")!;
+      // 🔍 Ricerca Mapbox
+      const search = ui.querySelector("#search")! as HTMLInputElement;
       search.addEventListener("keydown", async (e: any) => {
         if (e.key === "Enter") {
-          const q = (search as HTMLInputElement).value.trim();
+          const q = search.value.trim();
           if (!q) return;
           const r = await fetch(
-            `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
-              q
-            )}.json?access_token=${mapboxgl.accessToken}`
+            `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json?access_token=${mapboxgl.accessToken}`
           );
           const d = await r.json();
           const p = d.features?.[0];
@@ -198,7 +188,7 @@ console.log("Cesium importato correttamente:", !!Cesium.Viewer);
             map.flyTo({ center: [lon, lat], zoom: 6 });
           } else {
             viewer.camera.flyTo({
-              destination: Cartesian3.fromDegrees(lon, lat, 1000000),
+              destination: Cesium.Cartesian3.fromDegrees(lon, lat, 1000000),
               duration: 2,
             });
           }
@@ -217,4 +207,3 @@ console.log("Cesium importato correttamente:", !!Cesium.Viewer);
     </div>
   );
 }
-// ⬆️ FINE BLOCCO 11.6
