@@ -1,51 +1,68 @@
-// ⬇️ BLOCCO 10.7 — Cesium funzionante su Next 15.5 + Engine moderno
+// ⬇️ BLOCCO 10.8 — Atlas Eye View (Cesium personalizzato, senza watermark)
 "use client";
+
 import { useEffect, useRef } from "react";
+import * as Cesium from "cesium";
 
 export default function MapPage() {
   const mapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    let viewer: any;
+    let viewer: Cesium.Viewer | null = null;
 
     const initCesium = async () => {
       try {
-        // Importa il namespace Cesium completo
-        const Cesium = await import("cesium");
-        const Engine = await import("@cesium/engine");
-        const Widgets = await import("@cesium/widgets");
-
-        // Imposta token e path base
-        (Engine as any).Ion.defaultAccessToken =
-        process.env.NEXT_PUBLIC_CESIUM_TOKEN || "";
+        // ✅ Token e base URL
         (window as any).CESIUM_BASE_URL = "/cesium";
+        Cesium.Ion.defaultAccessToken =
+          process.env.NEXT_PUBLIC_CESIUM_TOKEN || "";
 
-        // Usa Viewer dal namespace corretto
-        const CesiumViewer = (Widgets as any).Viewer || (Engine as any).Viewer;
+        // ✅ Creazione Viewer
+        viewer = new Cesium.Viewer(mapRef.current as HTMLElement, {
+          animation: false,
+          timeline: false,
+          baseLayerPicker: false,
+          homeButton: false,
+          navigationHelpButton: false,
+          geocoder: false,
+          fullscreenButton: false,
+          sceneModePicker: false,
+          infoBox: false,
+          selectionIndicator: false,
+          creditContainer: document.createElement("div"), // ❗️Rimuove logo Cesium
+          skyBox: new Cesium.SkyBox({
+            sources: {
+              positiveX: "images/space_right.png",
+              negativeX: "images/space_left.png",
+              positiveY: "images/space_top.png",
+              negativeY: "images/space_bottom.png",
+              positiveZ: "images/space_front.png",
+              negativeZ: "images/space_back.png",
+            },
+          }),
+          scene3DOnly: true,
+          terrainProvider: await Cesium.createWorldTerrainAsync(),
+        });
 
-        if (!CesiumViewer) {
-          throw new Error("❌ Viewer non trovato nei moduli Cesium!");
-        }
+        // ✅ Colore del cielo e spazio nero profondo
+        viewer.scene.skyAtmosphere = new Cesium.SkyAtmosphere();
+        (viewer.scene as any).skyBox.show = true;
+        viewer.scene.backgroundColor = Cesium.Color.BLACK;
+        viewer.scene.globe.enableLighting = true;
+        viewer.scene.globe.depthTestAgainstTerrain = true;
 
-        // Crea viewer solo se esiste il container
-        if (mapRef.current) {
-          viewer = new CesiumViewer(mapRef.current, {
-            baseLayerPicker: false,
-            animation: false,
-            timeline: false,
-            terrainProvider: await (Engine as any).createWorldTerrainAsync(),
-          });
+        // ✅ Layer satellitare Ion
+        const imageryProvider = await Cesium.IonImageryProvider.fromAssetId(2);
+        viewer.imageryLayers.removeAll();
+        viewer.imageryLayers.addImageryProvider(imageryProvider);
 
-          // Layer satellitare
-          const imageryProvider = await (Engine as any).IonImageryProvider.fromAssetId(2);
-          viewer.imageryLayers.removeAll();
-          viewer.imageryLayers.addImageryProvider(imageryProvider);
+        // ✅ Volo iniziale: zoom sull’Europa
+        viewer.camera.flyTo({
+          destination: Cesium.Cartesian3.fromDegrees(12.5, 41.9, 2500000),
+          duration: 3,
+        });
 
-          // Vista iniziale su Roma 🌍
-          viewer.camera.flyTo({
-            destination: (Engine as any).Cartesian3.fromDegrees(12.5, 41.9, 2500000),
-          });
-        }
+        console.log("🌍 Atlas Eye View attiva!");
       } catch (err) {
         console.error("❌ Errore inizializzazione Cesium:", err);
       }
@@ -54,7 +71,7 @@ export default function MapPage() {
     initCesium();
 
     return () => {
-      if (viewer && viewer.destroy && !viewer.isDestroyed()) viewer.destroy();
+      if (viewer && !viewer.isDestroyed()) viewer.destroy();
     };
   }, []);
 
@@ -64,10 +81,10 @@ export default function MapPage() {
       style={{
         width: "100vw",
         height: "100vh",
-        backgroundColor: "black",
         overflow: "hidden",
+        backgroundColor: "black",
       }}
     />
   );
 }
-// ⬆️ FINE BLOCCO 10.7
+// ⬆️ FINE BLOCCO 10.8
