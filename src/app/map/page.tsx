@@ -11,17 +11,17 @@ export default function MapPage() {
 
     const initCesium = async () => {
       try {
-        // ✅ Import dinamico compatibile con Next.js (ESM + CommonJS)
-        const CesiumModule = await import("cesium");
-        const Cesium = CesiumModule.default || CesiumModule;
+        // ✅ Import dinamico compatibile con tutte le build (ESM e CommonJS)
+        const CesiumModule: any = await import("cesium");
+        const Cesium = CesiumModule.default?.Viewer ? CesiumModule.default : CesiumModule;
 
-        // ✅ Token e base URL
+        // ✅ Imposta token e base URL
         (window as any).CESIUM_BASE_URL = "/cesium";
-        Cesium.Ion.defaultAccessToken =
-          process.env.NEXT_PUBLIC_CESIUM_TOKEN || "";
+        Cesium.Ion.defaultAccessToken = process.env.NEXT_PUBLIC_CESIUM_TOKEN || "";
 
-        // ✅ Creazione Viewer
         if (!mapRef.current) return;
+
+        // ✅ Crea il viewer
         viewer = new Cesium.Viewer(mapRef.current, {
           animation: false,
           timeline: false,
@@ -33,7 +33,7 @@ export default function MapPage() {
           sceneModePicker: false,
           infoBox: false,
           selectionIndicator: false,
-          creditContainer: document.createElement("div"), // ❗️Rimuove watermark Cesium
+          creditContainer: document.createElement("div"), // 🔕 Rimuove watermark Cesium
           skyBox: new Cesium.SkyBox({
             sources: {
               positiveX: "images/space_right.png",
@@ -48,7 +48,7 @@ export default function MapPage() {
           terrainProvider: await Cesium.createWorldTerrainAsync(),
         });
 
-        // ✅ Spazio e atmosfera
+        // ✅ Cielo e spazio profondo
         viewer.scene.skyAtmosphere = new Cesium.SkyAtmosphere();
         viewer.scene.skyBox.show = true;
         viewer.scene.backgroundColor = Cesium.Color.BLACK;
@@ -60,7 +60,7 @@ export default function MapPage() {
         viewer.imageryLayers.removeAll();
         viewer.imageryLayers.addImageryProvider(imageryProvider);
 
-        // ✅ Volo iniziale: Europa
+        // ✅ Volo iniziale
         viewer.camera.flyTo({
           destination: Cesium.Cartesian3.fromDegrees(12.5, 41.9, 2500000),
           duration: 3,
@@ -74,7 +74,6 @@ export default function MapPage() {
 
     initCesium();
 
-    // ✅ Pulizia alla chiusura
     return () => {
       if (viewer && !viewer.isDestroyed()) viewer.destroy();
     };
