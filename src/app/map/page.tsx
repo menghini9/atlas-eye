@@ -1,4 +1,4 @@
-// ⬇️ BLOCCO 12.0 — Atlas Eye Real Hybrid (Atlante fissa + Fullscreen + Luci dinamiche + Help + Keyboard Zoom)
+// ⬇️ BLOCCO 12.1 — Atlas Eye (Atlante + Luci dinamiche + Keyboard Zoom + Help + Toggle Luci)
 "use client";
 
 import { useEffect, useRef } from "react";
@@ -13,14 +13,13 @@ export default function MapPage() {
     let viewer: any = null;
     let map: mapboxgl.Map | null = null;
 
-    // anti-glitch: isteresi per lo switch Cesium/Mapbox
-    const ENTER_MAPBOX_H = 350_000;  // passa a Mapbox sotto questa quota
-    const EXIT_MAPBOX_H  = 450_000;  // torna a Cesium sopra questa quota
+    const ENTER_MAPBOX_H = 350_000;
+    const EXIT_MAPBOX_H = 450_000;
     let inMapbox = false;
     let switching = false;
 
     const init = async () => {
-      // ✅ Loader Cesium dinamico e compatibile Next.js
+      // ✅ Import dinamico Cesium
       let Cesium: any;
       try {
         if (typeof window !== "undefined") {
@@ -30,23 +29,22 @@ export default function MapPage() {
               script.src = "/cesium/Cesium.js";
               script.async = true;
               script.onload = () => resolve(true);
-              script.onerror = (e) => reject(e);
+              script.onerror = reject;
               document.head.appendChild(script);
             });
-            console.log("🛰 Cesium.js caricato dinamicamente nel browser");
+            console.log("🛰 Cesium.js caricato nel browser");
           }
           Cesium = (window as any).Cesium;
-          console.log("Cesium importato correttamente:", !!Cesium?.Viewer);
         } else {
           const mod = await import("cesium");
-          Cesium = (mod as any).Viewer ? mod : (mod as any).default ?? mod;
+          Cesium = mod.default ?? mod;
         }
       } catch (err) {
-        console.error("❌ Errore durante l’importazione di Cesium:", err);
+        console.error("❌ Errore Cesium:", err);
         Cesium = {};
       }
 
-      // ✅ Configurazioni base
+      // ✅ Configurazioni
       (window as any).CESIUM_BASE_URL = "/cesium";
       Cesium.Ion.defaultAccessToken = process.env.NEXT_PUBLIC_CESIUM_TOKEN || "";
       mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
@@ -67,42 +65,56 @@ export default function MapPage() {
         terrainProvider: await Cesium.createWorldTerrainAsync(),
       });
 
-      // ✅ Scena
-      viewer.scene.skyAtmosphere = new Cesium.SkyAtmosphere();
       viewer.scene.backgroundColor = Cesium.Color.BLACK;
+      viewer.scene.skyAtmosphere = new Cesium.SkyAtmosphere();
       viewer.scene.globe.enableLighting = true;
       viewer.scene.globe.depthTestAgainstTerrain = true;
 
-      // ✅ Immagini: satellite + etichette
+      // ✅ Layer base
       const sat = await Cesium.IonImageryProvider.fromAssetId(2);
       const labels = await Cesium.IonImageryProvider.fromAssetId(3);
       viewer.imageryLayers.removeAll();
       viewer.imageryLayers.addImageryProvider(sat);
       const labelsLayer = viewer.imageryLayers.addImageryProvider(labels);
 
-      // 🌃 Luci urbane dinamiche sulla parte in ombra
-      // (usa il layer VIIRS + dayAlpha=0, nightAlpha>0)
+      // 🌃 Luci urbane dinamiche (reali e solo lato notte)
       const nightProvider = new Cesium.UrlTemplateImageryProvider({
         url: "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_CityLights_2012/default/2012-01-01/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg",
         credit: "NASA City Lights",
       });
       const nightLayer = viewer.imageryLayers.addImageryProvider(nightProvider);
-      nightLayer.dayAlpha = 0.0;    // invisibile di giorno
-      nightLayer.nightAlpha = 0.55; // visibile di notte
-      nightLayer.brightness = 1.1;
+      nightLayer.alpha = 0.0;
+      let lightsOn = true;
 
-      // ✅ Limiti zoom in 3D (Globo)
+      viewer.scene.postRender.addEventListener(() => {
+        try {
+          if (!lightsOn) {
+            nightLayer.alpha = 0;
+            return;
+          }
+          const sun = Cesium.Simon1994PlanetaryPositions.computeSunPosition(Cesium.JulianDate.now());
+          const camera = viewer.scene.camera.positionWC;
+          const dot = Cesium.Cartesian3.dot(
+            Cesium.Cartesian3.normalize(sun, new Cesium.Cartesian3()),
+            Cesium.Cartesian3.normalize(camera, new Cesium.Cartesian3())
+          );
+          const brightness = Math.max(0, Math.min(1, (0.2 - dot) * 2));
+          nightLayer.alpha = brightness * 0.7;
+        } catch {}
+      });
+
+      // ✅ Limiti zoom 3D
       const ctrl = viewer.scene.screenSpaceCameraController;
       ctrl.minimumZoomDistance = 300_000;
       ctrl.maximumZoomDistance = 20_000_000;
 
-      // ✅ Volo iniziale su Europa
+      // ✅ Posizione iniziale
       viewer.camera.flyTo({
         destination: Cesium.Cartesian3.fromDegrees(12.5, 41.9, 2_500_000),
         duration: 1.8,
       });
 
-      // ✅ Mapbox per viste ravvicinate
+      // ✅ Mapbox
       map = new mapboxgl.Map({
         container: mapboxRef.current!,
         style: "mapbox://styles/mapbox/satellite-streets-v12",
@@ -110,17 +122,14 @@ export default function MapPage() {
         zoom: 4.5,
         pitch: 45,
         bearing: 0,
-        antialias: true,
       });
       mapboxRef.current!.style.display = "none";
-      inMapbox = false;
 
-      // 🔄 Switch con isteresi + antibounce
-      let rafId: number | null = null;
+      // 🔄 Switch Cesium ↔ Mapbox
+      let raf: number;
       const watchHeight = () => {
         if (!viewer) return;
         const h = viewer.camera.positionCartographic.height;
-
         if (!switching) {
           if (!inMapbox && h < ENTER_MAPBOX_H) {
             switching = true;
@@ -136,18 +145,16 @@ export default function MapPage() {
             setTimeout(() => (switching = false), 120);
           }
         }
-        rafId = requestAnimationFrame(watchHeight);
+        raf = requestAnimationFrame(watchHeight);
       };
-      rafId = requestAnimationFrame(watchHeight);
+      raf = requestAnimationFrame(watchHeight);
 
-      // ✅ UI
+      // 🧭 Interfaccia
       const ui = uiRef.current!;
       ui.innerHTML = `
         <div id="atlas-ui" style="
           position:absolute;top:0;left:0;right:0;
-          padding:20px;
-          display:flex;justify-content:space-between;align-items:flex-start;
-          z-index:1000;">
+          padding:20px;display:flex;justify-content:space-between;align-items:flex-start;z-index:1000;">
           <div style="display:flex;gap:10px;align-items:center;">
             <div style="background:rgba(10,10,20,0.8);padding:6px 10px;border-radius:8px;color:white;">
               <b>Vista:</b>
@@ -156,14 +163,13 @@ export default function MapPage() {
                 <option value="flat">Atlante</option>
               </select>
             </div>
-            <button id="help" title="Aiuto" style="
-              background:rgba(20,20,25,0.9);color:#fff;border:none;border-radius:6px;
-              padding:6px 10px;font-size:16px;cursor:pointer;">?</button>
+            <button id="lights" title="Luci urbane" style="background:rgba(25,25,30,0.9);
+              color:#ffb400;border:none;border-radius:6px;padding:6px 10px;font-size:16px;cursor:pointer;">🌓</button>
+            <button id="help" title="Aiuto" style="background:rgba(20,20,25,0.9);
+              color:#fff;border:none;border-radius:6px;padding:6px 10px;font-size:16px;cursor:pointer;">?</button>
           </div>
-
-          <input id="search" placeholder="Cerca luogo..."
-            style="padding:8px 14px;border-radius:8px;border:1px solid #555;width:280px;background:rgba(15,15,20,0.86);color:white;"/>
-
+          <input id="search" placeholder="Cerca luogo..." style="padding:8px 14px;border-radius:8px;
+            border:1px solid #555;width:280px;background:rgba(15,15,20,0.86);color:white;"/>
           <div style="display:flex;gap:10px;align-items:center;">
             <div style="background:rgba(10,10,20,0.8);padding:6px 10px;border-radius:8px;color:white;">
               <b>Stile:</b>
@@ -172,8 +178,7 @@ export default function MapPage() {
                 <option value="hybrid" selected>Ibrida</option>
               </select>
             </div>
-            <button id="fullscreen" style="
-              background:rgba(20,20,25,0.9);color:white;border:none;border-radius:6px;
+            <button id="fullscreen" style="background:rgba(20,20,25,0.9);color:white;border:none;border-radius:6px;
               padding:6px 10px;font-size:16px;cursor:pointer;">⛶</button>
           </div>
         </div>
@@ -182,117 +187,99 @@ export default function MapPage() {
           background:rgba(10,10,15,0.95);color:#fff;border:1px solid #333;border-radius:10px;
           padding:12px 14px;z-index:1001;display:none;font-size:14px;line-height:1.45;">
           <b>Istruzioni</b><br/>
-          • Zoom: rotellina mouse / pinch su touch / <b>↑</b>=zoom in, <b>↓</b>=zoom out, <b>+</b>/<b>-</b>.<br/>
-          • Atlante: vista fissa globale, puoi solo cambiare lo zoom.<br/>
-          • Globo: rotazione/inclinazione libere; passa a vista dettagliata vicino al suolo.<br/>
-          • Ricerca: digita e scegli un suggerimento.
+          • Zoom: rotellina / touch / <b>↑</b>=in, <b>↓</b>=out, <b>+</b>/<b>-</b>.<br/>
+          • Atlante: vista globale fissa, solo zoom.<br/>
+          • Globo: movimento libero, inclinazione, rotazione.<br/>
+          • 🌓: attiva/disattiva luci urbane dinamiche.<br/>
+          • Ricerca: digita e scegli un luogo.
         </div>
       `;
 
-      // ⛶ Fullscreen
-      ui.querySelector<HTMLButtonElement>("#fullscreen")!.addEventListener("click", () => {
+      // Pulsanti UI
+      const helpPanel = ui.querySelector<HTMLDivElement>("#helpPanel")!;
+      ui.querySelector<HTMLButtonElement>("#help")!.onclick = () => {
+        helpPanel.style.display = helpPanel.style.display === "none" ? "block" : "none";
+      };
+      ui.querySelector<HTMLButtonElement>("#fullscreen")!.onclick = () => {
         if (!document.fullscreenElement) document.documentElement.requestFullscreen();
         else document.exitFullscreen();
-      });
+      };
+      ui.querySelector<HTMLButtonElement>("#lights")!.onclick = () => {
+        lightsOn = !lightsOn;
+        nightLayer.alpha = lightsOn ? 0.7 : 0.0;
+      };
 
-      // ❓ Help
-      const helpBtn = ui.querySelector<HTMLButtonElement>("#help")!;
-      const helpPanel = ui.querySelector<HTMLDivElement>("#helpPanel")!;
-      helpBtn.addEventListener("click", () => {
-        helpPanel.style.display = helpPanel.style.display === "none" ? "block" : "none";
-      });
-
-      // 🗺️ Stile
-      ui.querySelector<HTMLSelectElement>("#styleMode")!.addEventListener("change", (e: any) => {
+      // Cambio stile
+      ui.querySelector<HTMLSelectElement>("#styleMode")!.onchange = (e: any) => {
         const v = e.target.value;
         viewer.imageryLayers.remove(labelsLayer);
         if (v === "hybrid") viewer.imageryLayers.addImageryProvider(labels);
-      });
+      };
 
-      // 🔘 Cambio vista (Globo ↔ Atlante)
-      ui.querySelector<HTMLSelectElement>("#viewMode")!.addEventListener("change", (e: any) => {
+      // 🔘 Cambio vista Globo ↔ Atlante
+      ui.querySelector<HTMLSelectElement>("#viewMode")!.onchange = (e: any) => {
         const mode = e.target.value;
         const ctrl = viewer.scene.screenSpaceCameraController;
 
         if (mode === "flat") {
-          // passa a 2D
-          viewer.scene.morphTo2D(0.8);
-          // quando finisce la morph, imposta la vista globale e blocca movimenti
+          viewer.scene.morphTo2D(1);
           const once = () => {
             viewer.scene.morphComplete.removeEventListener(once);
-
-            // vista sul mondo intero
             const world = Cesium.Rectangle.fromDegrees(-180, -85, 180, 85);
-            viewer.scene.mapProjection = new Cesium.WebMercatorProjection();
             viewer.camera.setView({ destination: world });
-
-            // blocca rotazione/inclinazione/traslazione: solo zoom
             ctrl.enableRotate = false;
             ctrl.enableTilt = false;
             ctrl.enableTranslate = false;
             ctrl.enableZoom = true;
-
-            // zoom: massimo = mondo intero, minimo = allontanarsi
-            ctrl.minimumZoomDistance = 10_000_000; // non oltre il mondo intero
+            ctrl.minimumZoomDistance = 10_000_000;
             ctrl.maximumZoomDistance = 40_000_000;
-
             viewer.scene.skyAtmosphere.show = false;
-            // non switchare a Mapbox in Atlante
-            inMapbox = false;
-            cesiumRef.current!.style.display = "block";
-            mapboxRef.current!.style.display = "none";
           };
           viewer.scene.morphComplete.addEventListener(once);
         } else {
-          // torna al globo 3D
-          viewer.scene.morphTo3D(0.8);
+          viewer.scene.morphTo3D(1);
           const once = () => {
             viewer.scene.morphComplete.removeEventListener(once);
-
             ctrl.enableRotate = true;
             ctrl.enableTilt = true;
             ctrl.enableTranslate = true;
             ctrl.enableZoom = true;
             ctrl.minimumZoomDistance = 300_000;
             ctrl.maximumZoomDistance = 20_000_000;
-
             viewer.scene.skyAtmosphere.show = true;
-
-            viewer.camera.flyTo({
-              destination: Cesium.Cartesian3.fromDegrees(12.5, 41.9, 2_500_000),
-              duration: 1.2,
-            });
           };
           viewer.scene.morphComplete.addEventListener(once);
         }
-      });
+      };
 
-      // 🔍 Ricerca con suggerimenti (già la usavi: la lascio identica)
+      // 🔍 Ricerca suggerimenti
       const search = ui.querySelector("#search")! as HTMLInputElement;
       const suggestions = document.createElement("div");
       suggestions.id = "suggestions";
       suggestions.style.cssText = `
         position:absolute;top:60px;left:50%;transform:translateX(-50%);
         background:rgba(10,10,15,0.95);border:1px solid #333;border-radius:8px;
-        width:280px;max-height:220px;overflow-y:auto;z-index:1001;color:white;
-        font-size:14px;display:none;`;
+        width:280px;max-height:220px;overflow-y:auto;z-index:1001;color:white;font-size:14px;display:none;`;
       ui.appendChild(suggestions);
 
       async function showSuggestions(q: string) {
-        if (!q.trim()) { suggestions.style.display = "none"; return; }
+        if (!q.trim()) return (suggestions.style.display = "none");
         const r = await fetch(
           `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json?access_token=${mapboxgl.accessToken}&autocomplete=true&limit=5`
         );
         const d = await r.json();
         const feats = d.features || [];
-        if (!feats.length) { suggestions.style.display = "none"; return; }
-        suggestions.innerHTML = feats.map(
-          (f: any) => `<div class="suggestion" data-coords='${JSON.stringify(f.center)}'
-              style="padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.1);cursor:pointer;">
-              ${f.place_name}</div>`
-        ).join("");
+        if (!feats.length) return (suggestions.style.display = "none");
+        suggestions.innerHTML = feats
+          .map(
+            (f: any) =>
+              `<div class="suggestion" data-coords='${JSON.stringify(f.center)}'
+               style="padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.1);cursor:pointer;">
+               ${f.place_name}</div>`
+          )
+          .join("");
         suggestions.style.display = "block";
-        suggestions.querySelectorAll(".suggestion").forEach((el) => {
+        suggestions.querySelectorAll(".suggestion").forEach((el) =>
           el.addEventListener("click", (ev) => {
             const coords = JSON.parse((ev.target as HTMLElement).dataset.coords!);
             const [lon, lat] = coords;
@@ -303,42 +290,42 @@ export default function MapPage() {
             });
             search.value = (ev.target as HTMLElement).textContent || "";
             suggestions.style.display = "none";
-          });
-        });
+          })
+        );
       }
-      let typingT: any;
-      search.addEventListener("input", (e: any) => {
-        clearTimeout(typingT);
-        typingT = setTimeout(() => showSuggestions(e.target.value), 250);
-      });
+      let typing: any;
+      search.oninput = (e: any) => {
+        clearTimeout(typing);
+        typing = setTimeout(() => showSuggestions(e.target.value), 250);
+      };
       document.addEventListener("click", (e) => {
-        if (!(e.target as HTMLElement).closest("#search") &&
-            !(e.target as HTMLElement).closest("#suggestions")) {
+        if (
+          !(e.target as HTMLElement).closest("#search") &&
+          !(e.target as HTMLElement).closest("#suggestions")
+        )
           suggestions.style.display = "none";
-        }
       });
 
-      // ⌨️ Zoom da tastiera (↑/↓ e +/-)
+      // ⌨️ Zoom tastiera con limiti e direzione corretta
       const keyZoom = (dir: "in" | "out") => {
-        if (inMapbox && map) {
-          if (dir === "in") map.zoomIn({ duration: 150 });
-          else map.zoomOut({ duration: 150 });
-        } else {
-          const step = dir === "in" ? -400_000 : 400_000; // negativo = avvicina
-          viewer.camera.zoomIn(step);
-        }
+        const h = viewer.camera.positionCartographic.height;
+        const step = dir === "in" ? -400_000 : 400_000;
+        const newH = Cesium.Math.clamp(
+          h + step,
+          ctrl.minimumZoomDistance,
+          ctrl.maximumZoomDistance
+        );
+        viewer.camera.moveForward(h - newH);
       };
-      const onKey = (e: KeyboardEvent) => {
-        if (e.key === "ArrowUp" || e.key === "+") keyZoom("in");
-        if (e.key === "ArrowDown" || e.key === "-") keyZoom("out");
-      };
-      window.addEventListener("keydown", onKey);
+      window.addEventListener("keydown", (e) => {
+        if (["ArrowUp", "+"].includes(e.key)) keyZoom("in");
+        if (["ArrowDown", "-"].includes(e.key)) keyZoom("out");
+      });
 
-      // 🧹 cleanup
+      // Cleanup
       return () => {
-        window.removeEventListener("keydown", onKey);
-        if (rafId) cancelAnimationFrame(rafId);
-        if (map) { map.remove(); map = null; }
+        if (raf) cancelAnimationFrame(raf);
+        if (map) map.remove();
         if (viewer && !viewer.isDestroyed()) viewer.destroy();
       };
     };
@@ -354,4 +341,4 @@ export default function MapPage() {
     </div>
   );
 }
-// ⬆️ FINE BLOCCO 12.0
+// ⬆️ FINE BLOCCO 12.1
