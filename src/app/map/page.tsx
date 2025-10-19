@@ -1,8 +1,9 @@
 // ⬇️ BLOCCO 10.8 — Atlas Eye View (Cesium personalizzato, senza watermark)
 "use client";
 
-import { useEffect, useRef } from "react";
 import * as Cesium from "cesium";
+import "cesium/Build/Cesium/Widgets/widgets.css";
+import { useRef, useEffect } from "react";
 
 export default function MapPage() {
   const mapRef = useRef<HTMLDivElement>(null);
