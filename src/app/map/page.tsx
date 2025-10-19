@@ -1,3 +1,4 @@
+// ⬇️ BLOCCO 11.9 — Atlas Eye Real Hybrid (Atlante fissa + Fullscreen + Luci)
 "use client";
 
 import { useEffect, useRef } from "react";
@@ -13,45 +14,34 @@ export default function MapPage() {
     let map: any = null;
 
     const init = async () => {
-      // ✅ Import Cesium robusto (compatibile Next.js 15 / Webpack 5)
-// ✅ Import Cesium stabile per Next.js + Vercel
-// ✅ Loader Cesium compatibile con Next.js + Vercel
-let Cesium: any;
+      // ✅ Loader Cesium dinamico e compatibile Next.js
+      let Cesium: any;
+      try {
+        if (typeof window !== "undefined") {
+          if (!(window as any).Cesium) {
+            await new Promise((resolve, reject) => {
+              const script = document.createElement("script");
+              script.src = "/cesium/Cesium.js";
+              script.async = true;
+              script.onload = () => resolve(true);
+              script.onerror = (e) => reject(e);
+              document.head.appendChild(script);
+            });
+            console.log("🛰 Cesium.js caricato dinamicamente nel browser");
+          }
+          Cesium = (window as any).Cesium;
+          console.log("Cesium importato correttamente:", !!Cesium?.Viewer);
+        } else {
+          const mod = await import("cesium");
+          Cesium = (mod as any).Viewer ? mod : (mod as any).default ?? mod;
+          console.log("Cesium importato lato server:", !!Cesium?.Viewer);
+        }
+      } catch (err) {
+        console.error("❌ Errore durante l’importazione di Cesium:", err);
+        Cesium = {};
+      }
 
-try {
-  if (typeof window !== "undefined") {
-    // Controlla se già caricato
-    if (!(window as any).Cesium) {
-      // 🔹 Carica Cesium.js da /public in runtime browser
-      await new Promise((resolve, reject) => {
-        const script = document.createElement("script");
-        script.src = "/cesium/Cesium.js";
-        script.async = true;
-        script.onload = () => resolve(true);
-        script.onerror = (e) => reject(e);
-        document.head.appendChild(script);
-      });
-      console.log("🛰 Cesium.js caricato dinamicamente nel browser");
-    }
-
-    Cesium = (window as any).Cesium;
-    console.log("Cesium importato correttamente:", !!Cesium?.Viewer);
-  } else {
-    // fallback server-side (compilazione Next)
-    const mod = await import("cesium");
-    Cesium = (mod as any).Viewer ? mod : (mod as any).default ?? mod;
-    console.log("Cesium importato lato server:", !!Cesium?.Viewer);
-  }
-} catch (err) {
-  console.error("❌ Errore durante l’importazione di Cesium:", err);
-  Cesium = {};
-}
-
-
-
-
-
-      // ✅ Configurazioni chiavi
+      // ✅ Configurazioni base
       (window as any).CESIUM_BASE_URL = "/cesium";
       Cesium.Ion.defaultAccessToken = process.env.NEXT_PUBLIC_CESIUM_TOKEN || "";
       mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
@@ -68,7 +58,7 @@ try {
         sceneModePicker: false,
         infoBox: false,
         selectionIndicator: false,
-        creditContainer: document.createElement("div"), // rimuove watermark
+        creditContainer: document.createElement("div"),
         terrainProvider: await Cesium.createWorldTerrainAsync(),
       });
 
@@ -78,14 +68,14 @@ try {
       viewer.scene.globe.enableLighting = true;
       viewer.scene.globe.depthTestAgainstTerrain = true;
 
-      // ✅ Layer satellitare + etichette
+      // ✅ Layer principali (satellite + etichette)
       const sat = await Cesium.IonImageryProvider.fromAssetId(2);
       const labels = await Cesium.IonImageryProvider.fromAssetId(3);
       viewer.imageryLayers.removeAll();
       viewer.imageryLayers.addImageryProvider(sat);
       viewer.imageryLayers.addImageryProvider(labels);
 
-      // 🌃 Luci urbane notturne (NASA VIIRS)
+      // 🌃 Luci urbane (NASA)
       setTimeout(() => {
         const night = new Cesium.UrlTemplateImageryProvider({
           url: "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_CityLights_2012/default/2012-01-01/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg",
@@ -106,7 +96,7 @@ try {
         duration: 2,
       });
 
-      // ✅ Mapbox (per viste ravvicinate)
+      // ✅ Mapbox per viste ravvicinate
       map = new mapboxgl.Map({
         container: mapboxRef.current!,
         style: "mapbox://styles/mapbox/satellite-streets-v12",
@@ -177,12 +167,49 @@ try {
         }
       });
 
-      // 🌍 Vista Globo ↔ Atlante
+      // 🌍 Cambio vista (Globo ↔ Atlante)
       const viewSel = ui.querySelector("#viewMode")!;
       viewSel.addEventListener("change", (e: any) => {
-        if (e.target.value === "flat") {
+        const mode = e.target.value;
+        const ctrl = viewer.scene.screenSpaceCameraController;
+
+        if (mode === "flat") {
+          console.log("🗺 Passaggio a vista Atlante (2D)");
           viewer.scene.morphTo2D(1.5);
-        } else viewer.scene.morphTo3D(1.5);
+          viewer.camera.flyHome(0);
+
+          ctrl.enableRotate = false;
+          ctrl.enableTilt = false;
+          ctrl.enableTranslate = false;
+          ctrl.enableZoom = true;
+
+          ctrl.minimumZoomDistance = 700000;
+          ctrl.maximumZoomDistance = 15000000;
+
+          viewer.scene.mapProjection = new Cesium.WebMercatorProjection();
+          viewer.camera.setView({
+            destination: Cesium.Rectangle.fromDegrees(-180, -85, 180, 85),
+          });
+
+          viewer.scene.skyAtmosphere.show = false;
+          viewer.scene.backgroundColor = Cesium.Color.BLACK;
+          console.log("✅ Modalità Atlante attiva: fissa e zoomabile");
+        } else {
+          console.log("🌍 Passaggio a vista Globo (3D)");
+          viewer.scene.morphTo3D(1.5);
+
+          ctrl.enableRotate = true;
+          ctrl.enableTilt = true;
+          ctrl.enableTranslate = true;
+          ctrl.enableZoom = true;
+
+          ctrl.minimumZoomDistance = 300000;
+          ctrl.maximumZoomDistance = 20000000;
+
+          viewer.scene.skyAtmosphere.show = true;
+          viewer.scene.backgroundColor = Cesium.Color.BLACK;
+          console.log("✅ Modalità Globo ripristinata");
+        }
       });
 
       // 🗺️ Cambio stile
@@ -230,3 +257,4 @@ try {
     </div>
   );
 }
+// ⬆️ FINE BLOCCO 11.9
