@@ -1,7 +1,5 @@
-// ⬇️ BLOCCO 10.8 — Atlas Eye View (Cesium personalizzato, senza watermark)
 "use client";
-
-import { useRef, useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 export default function MapPage() {
   const mapRef = useRef<HTMLDivElement>(null);
@@ -9,20 +7,42 @@ export default function MapPage() {
   useEffect(() => {
     let viewer: any = null;
 
-    const initCesium = async () => {
+    const init = async () => {
       try {
-        // ✅ Import dinamico compatibile con tutte le build (ESM e CommonJS)
-        const CesiumModule: any = await import("cesium");
-        const Cesium = CesiumModule.default?.Viewer ? CesiumModule.default : CesiumModule;
+        // 1) Import dinamico: copre sia mod.namespace sia mod.default
+        const mod: any = await import("cesium");
+        const C: any = mod?.default && (mod.default.Viewer || mod.default.Ion)
+          ? mod.default
+          : mod;
 
-        // ✅ Imposta token e base URL
+        // 2) Estraggo tutto ciò che mi serve dal namespace corretto
+        const {
+          Viewer,
+          Ion,
+          IonImageryProvider,
+          createWorldTerrainAsync,
+          SkyAtmosphere,
+          Color,
+          Cartesian3,
+          // SkyBox // <- riattiva se vuoi lo skybox personalizzato
+        } = C;
+
+        // 3) Sanity check: se Viewer non è una funzione/constructor, fermo tutto qui
+        if (typeof Viewer !== "function") {
+          throw new Error(
+            `Cesium.Viewer non trovato (typeof Viewer = ${typeof Viewer}). ` +
+              `Namespace keys: ${Object.keys(C || {}).slice(0, 20).join(", ")}`
+          );
+        }
+
+        // 4) Base URL per asset e token
         (window as any).CESIUM_BASE_URL = "/cesium";
-        Cesium.Ion.defaultAccessToken = process.env.NEXT_PUBLIC_CESIUM_TOKEN || "";
+        Ion.defaultAccessToken = process.env.NEXT_PUBLIC_CESIUM_TOKEN || "";
 
         if (!mapRef.current) return;
 
-        // ✅ Crea il viewer
-        viewer = new Cesium.Viewer(mapRef.current, {
+        // 5) Istanzio il Viewer
+        viewer = new Viewer(mapRef.current, {
           animation: false,
           timeline: false,
           baseLayerPicker: false,
@@ -33,47 +53,37 @@ export default function MapPage() {
           sceneModePicker: false,
           infoBox: false,
           selectionIndicator: false,
-          creditContainer: document.createElement("div"), // 🔕 Rimuove watermark Cesium
-          skyBox: new Cesium.SkyBox({
-            sources: {
-              positiveX: "images/space_right.png",
-              negativeX: "images/space_left.png",
-              positiveY: "images/space_top.png",
-              negativeY: "images/space_bottom.png",
-              positiveZ: "images/space_front.png",
-              negativeZ: "images/space_back.png",
-            },
-          }),
+          creditContainer: document.createElement("div"), // 🔕 niente watermark
           scene3DOnly: true,
-          terrainProvider: await Cesium.createWorldTerrainAsync(),
+          terrainProvider: await createWorldTerrainAsync(),
+          // skyBox: new SkyBox({ ... }) // <- opzionale
         });
 
-        // ✅ Cielo e spazio profondo
-        viewer.scene.skyAtmosphere = new Cesium.SkyAtmosphere();
+        // 6) Scena “spazio profondo” sobria
+        viewer.scene.skyAtmosphere = new SkyAtmosphere();
         viewer.scene.skyBox.show = true;
-        viewer.scene.backgroundColor = Cesium.Color.BLACK;
+        viewer.scene.backgroundColor = Color.BLACK;
         viewer.scene.globe.enableLighting = true;
         viewer.scene.globe.depthTestAgainstTerrain = true;
 
-        // ✅ Layer satellitare Ion
-        const imageryProvider = await Cesium.IonImageryProvider.fromAssetId(2);
+        // 7) Layer satellitare Ion (assetId 2 = imagery globale)
+        const imagery = await IonImageryProvider.fromAssetId(2);
         viewer.imageryLayers.removeAll();
-        viewer.imageryLayers.addImageryProvider(imageryProvider);
+        viewer.imageryLayers.addImageryProvider(imagery);
 
-        // ✅ Volo iniziale
+        // 8) Inquadratura iniziale: Europa
         viewer.camera.flyTo({
-          destination: Cesium.Cartesian3.fromDegrees(12.5, 41.9, 2500000),
-          duration: 3,
+          destination: Cartesian3.fromDegrees(12.5, 41.9, 2_500_000),
+          duration: 2.5,
         });
 
-        console.log("🌍 Atlas Eye View attiva!");
+        console.log("🌍 Atlas Eye: Cesium attivo.");
       } catch (err) {
         console.error("❌ Errore inizializzazione Cesium:", err);
       }
     };
 
-    initCesium();
-
+    init();
     return () => {
       if (viewer && !viewer.isDestroyed()) viewer.destroy();
     };
@@ -86,9 +96,8 @@ export default function MapPage() {
         width: "100vw",
         height: "100vh",
         overflow: "hidden",
-        backgroundColor: "black",
+        background: "black",
       }}
     />
   );
 }
-// ⬆️ FINE BLOCCO 10.8
