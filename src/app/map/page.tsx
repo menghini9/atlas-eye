@@ -14,18 +14,41 @@ export default function MapPage() {
 
     const init = async () => {
       // ✅ Import Cesium robusto (compatibile Next.js 15 / Webpack 5)
- let Cesium: any;
+// ✅ Import Cesium stabile per Next.js + Vercel
+// ✅ Loader Cesium compatibile con Next.js + Vercel
+let Cesium: any;
 
 try {
-  // ✅ Tentativo principale: modulo moderno
-  const mod = await import("cesium");
-  Cesium = (mod as any).Viewer ? mod : (mod as any).default ?? mod;
+  if (typeof window !== "undefined") {
+    // Controlla se già caricato
+    if (!(window as any).Cesium) {
+      // 🔹 Carica Cesium.js da /public in runtime browser
+      await new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = "/cesium/Cesium.js";
+        script.async = true;
+        script.onload = () => resolve(true);
+        script.onerror = (e) => reject(e);
+        document.head.appendChild(script);
+      });
+      console.log("🛰 Cesium.js caricato dinamicamente nel browser");
+    }
+
+    Cesium = (window as any).Cesium;
+    console.log("Cesium importato correttamente:", !!Cesium?.Viewer);
+  } else {
+    // fallback server-side (compilazione Next)
+    const mod = await import("cesium");
+    Cesium = (mod as any).Viewer ? mod : (mod as any).default ?? mod;
+    console.log("Cesium importato lato server:", !!Cesium?.Viewer);
+  }
 } catch (err) {
-  console.error("❌ Errore durante l'import Cesium:", err);
+  console.error("❌ Errore durante l’importazione di Cesium:", err);
   Cesium = {};
 }
 
-console.log("Cesium importato correttamente:", !!Cesium.Viewer);
+
+
 
 
       // ✅ Configurazioni chiavi
