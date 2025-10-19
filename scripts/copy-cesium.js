@@ -1,26 +1,15 @@
-// ⬇️ BLOCCO 10.1 — Copia asset Cesium correttamente per Vercel
-import { fileURLToPath } from "url";
-import path from "path";
+// ESM
 import fs from "fs-extra";
+import path from "path";
+import { fileURLToPath } from "url";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-// Percorso sorgente (dove Cesium installa i suoi asset)
-const cesiumSource = path.join(__dirname, "../node_modules/cesium/Build/Cesium");
+const src = path.join(__dirname, "../node_modules/cesium/Build/Cesium");
+const dest = path.join(__dirname, "../public/cesium");
 
-// Percorso destinazione (cartella pubblica del progetto)
-const cesiumDest = path.join(__dirname, "../public/cesium");
+await fs.remove(dest);
+await fs.copy(src, dest);
 
-// Copia i file statici
-async function copyCesiumAssets() {
-  try {
-    await fs.ensureDir(cesiumDest);
-    await fs.copy(cesiumSource, cesiumDest, { overwrite: true });
-    console.log("✅ Asset Cesium copiati correttamente in /public/cesium");
-  } catch (err) {
-    console.error("❌ Errore copia asset Cesium:", err);
-  }
-}
-
-copyCesiumAssets();
-// ⬆️ FINE BLOCCO 10.1
+console.log("✅ Asset Cesium copiati correttamente in /public/cesium");
