@@ -14,7 +14,8 @@ export default function MapPage() {
     let map: any = null;
 
     const init = async () => {
-      const Cesium = await import("cesium");
+      const Cesium = await import("cesium").then(m => m.default || m);
+
       const {
         Ion,
         IonImageryProvider,
