@@ -1,4 +1,4 @@
-// ⬇️ BLOCCO 11.3 — Atlas Eye Hybrid Ultra
+// ⬇️ BLOCCO 11.4 — Atlas Eye Hybrid Ultra+ (Atlante + Luci + Fullscreen)
 "use client";
 
 import { useEffect, useRef } from "react";
@@ -25,6 +25,7 @@ export default function MapPage() {
         UrlTemplateImageryProvider,
         SunLight,
         SceneMode,
+        WebMercatorProjection,
       } = CesiumEngine;
       const { Viewer } = CesiumWidgets;
 
@@ -32,7 +33,7 @@ export default function MapPage() {
       Ion.defaultAccessToken = process.env.NEXT_PUBLIC_CESIUM_TOKEN || "";
       mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
-      // ✅ Inizializza Cesium
+      // ✅ Inizializza Cesium (2D abilitato)
       viewer = new Viewer(cesiumRef.current!, {
         animation: false,
         timeline: false,
@@ -45,7 +46,8 @@ export default function MapPage() {
         infoBox: false,
         selectionIndicator: false,
         creditContainer: document.createElement("div"),
-        scene3DOnly: true,
+        scene3DOnly: false, // ⚡ permette anche la vista 2D
+        mapProjection: new WebMercatorProjection(),
         terrainProvider: await createWorldTerrainAsync(),
       });
 
@@ -57,9 +59,12 @@ export default function MapPage() {
       // ✅ Layers
       const satLayer = await IonImageryProvider.fromAssetId(2);
       const labelsLayer = await IonImageryProvider.fromAssetId(3);
+
+      // 🌃 Nuova texture notturna NASA (affidabile)
       const nightLayer = new UrlTemplateImageryProvider({
-        url: "https://tiles.arcgis.com/tiles/qHLhCfIG1z3XJ1Yk/arcgis/rest/services/Earth_at_Night/MapServer/tile/{z}/{y}/{x}",
-        credit: "NASA Earth at Night",
+        url: "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_CityLights_2012/default/{Time}/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}.jpg",
+        credit: "NASA Blue Marble Night",
+        maximumLevel: 8,
       });
 
       viewer.imageryLayers.removeAll();
@@ -68,18 +73,19 @@ export default function MapPage() {
       const night = viewer.imageryLayers.addImageryProvider(nightLayer);
       night.alpha = 0.0;
 
-      // ✅ Zoom limitato
+      // ✅ Zoom limits
       const ctrl = viewer.scene.screenSpaceCameraController;
       ctrl.minimumZoomDistance = 300000;
       ctrl.maximumZoomDistance = 25000000;
 
-      // ✅ Transizione morbida giorno/notte + switch Mapbox
+      // ✅ Transizione fluida + switch Cesium/Mapbox
       viewer.scene.postRender.addEventListener(() => {
         const sun = viewer.scene.light?.direction;
         if (sun) {
-          const f = Math.max(0, 1 - sun.z);
-          night.alpha += ((f * 0.9) - night.alpha) * 0.05; // fade fluido
+          const targetAlpha = Math.max(0, 1 - sun.z);
+          night.alpha += (targetAlpha * 0.9 - night.alpha) * 0.05;
         }
+
         const h = viewer.camera.positionCartographic.height;
         const c = cesiumRef.current!;
         const m = mapboxRef.current!;
@@ -92,7 +98,7 @@ export default function MapPage() {
         duration: 2.5,
       });
 
-      // ✅ Mapbox
+      // ✅ Mapbox base
       map = new mapboxgl.Map({
         container: mapboxRef.current!,
         style: "mapbox://styles/mapbox/satellite-streets-v12",
@@ -102,11 +108,33 @@ export default function MapPage() {
         bearing: 0,
         antialias: true,
       });
-      map.addControl(new mapboxgl.NavigationControl());
-      map.addControl(new mapboxgl.FullscreenControl()); // 🌕 Schermo intero
-      mapboxRef.current!.style.display = "none";
 
-      // ✅ Ricerca
+      // 🖥️ Schermo intero condiviso
+      const fullBtn = document.createElement("button");
+      fullBtn.innerText = "⛶";
+      Object.assign(fullBtn.style, {
+        position: "absolute",
+        bottom: "20px",
+        right: "20px",
+        fontSize: "20px",
+        background: "rgba(20,20,25,0.8)",
+        color: "#fff",
+        border: "none",
+        borderRadius: "6px",
+        padding: "5px 10px",
+        cursor: "pointer",
+        zIndex: "1000",
+      });
+      fullBtn.onclick = () => {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen();
+        } else {
+          document.exitFullscreen();
+        }
+      };
+      document.body.appendChild(fullBtn);
+
+      // ✅ Barra di ricerca
       const search = document.createElement("input");
       Object.assign(search, {
         placeholder: "Cerca luogo...",
@@ -151,7 +179,7 @@ export default function MapPage() {
         }
       });
 
-      // ✅ Selettore stile (solo Satellite / Ibrido)
+      // ✅ Stile (satellite / ibrido)
       const styleBox = document.createElement("div");
       Object.assign(styleBox.style, {
         position: "absolute",
@@ -192,7 +220,7 @@ export default function MapPage() {
         );
       });
 
-      // ✅ Controllo vista (sferica / piatta)
+      // ✅ Vista (Globo ↔ Atlante)
       const viewBox = document.createElement("div");
       Object.assign(viewBox.style, {
         position: "absolute",
@@ -217,13 +245,13 @@ export default function MapPage() {
       const viewSel = document.getElementById("viewMode") as HTMLSelectElement;
       viewSel.addEventListener("change", () => {
         if (viewSel.value === "flat") {
-          viewer.scene.mode = SceneMode.SCENE2D; // vista piatta
+          viewer.scene.morphTo2D(1.5);
         } else {
-          viewer.scene.mode = SceneMode.SCENE3D; // globo
+          viewer.scene.morphTo3D(1.5);
         }
       });
 
-      console.log("🌍 Atlas Eye Hybrid Ultra attivo");
+      console.log("🌍 Atlas Eye Hybrid Ultra+ attivo");
     };
 
     init();
@@ -241,4 +269,4 @@ export default function MapPage() {
     </div>
   );
 }
-// ⬆️ FINE BLOCCO 11.3
+// ⬆️ FINE BLOCCO 11.4
