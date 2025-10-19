@@ -1,71 +1,61 @@
-// ⬇️ BLOCCO 6.3 — Cesium 1.134.1 + Next 15 compatibile
-// ⬇️ BLOCCO 6.3 — Cesium 1.134.1 + Next 15 compatibile
-// @ts-nocheck
-
+// ⬇️ BLOCCO 9.2 — MapPage definitivo (Cesium + Next 15 compatibile)
 "use client";
-
 import { useEffect, useRef } from "react";
-// @ts-ignore – Cesium ha definizioni incomplete in ESM
-import { Viewer } from "cesium";
-import "@cesium/widgets/Source/widgets.css";
- // ✅ compatibile anche su Vercel
-
-
-
 
 export default function MapPage() {
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<HTMLDivElement>(null);
 
-useEffect(() => {
-  // @ts-ignore
-  let viewer: any;
+  useEffect(() => {
+    let viewer: any;
 
-  (async () => {
-    // 🌍 Path agli asset statici Cesium
-    (window as any).CESIUM_BASE_URL = "/cesium";
+    // funzione asincrona per caricare Cesium solo lato client
+    const initCesium = async () => {
+      try {
+        const Cesium = await import("cesium");
 
-    // 🔑 Chiave Cesium Ion
-    // @ts-ignore
-    Cesium.Ion.defaultAccessToken = process.env.NEXT_PUBLIC_CESIUM_API_KEY || "";
+        // token Cesium Ion (metti il tuo in .env.local)
+        Cesium.Ion.defaultAccessToken =
+          process.env.NEXT_PUBLIC_CESIUM_ION_TOKEN || "";
 
-    // @ts-ignore
-    const terrain = await Cesium.createWorldTerrainAsync();
-    // @ts-ignore
-    viewer = new Cesium.Viewer(containerRef.current!, {
-      terrainProvider: terrain,
-      animation: false,
-      timeline: false,
-      baseLayerPicker: false,
-      geocoder: false,
-      homeButton: false,
-      navigationHelpButton: false,
-      sceneModePicker: false,
-      fullscreenButton: false,
-      infoBox: false,
-      selectionIndicator: false,
-      useBrowserRecommendedResolution: true,
-      requestRenderMode: true,
-      maximumRenderTimeChange: 0.0,
-    });
+        // base URL per gli asset statici Cesium
+        (window as any).CESIUM_BASE_URL = "/";
 
-    // 🌞 Illuminazione
-    // @ts-ignore
-    viewer.scene.globe.enableLighting = true;
-    // @ts-ignore
-    viewer.scene.globe.dynamicAtmosphereLighting = true;
+        if (mapRef.current) {
+          // Crea il viewer base
+          viewer = new Cesium.Viewer(mapRef.current, {
+            baseLayerPicker: false,
+            timeline: false,
+            animation: false,
+          });
 
-    // 🌍 Vista iniziale
-    // @ts-ignore
-    viewer.camera.flyTo({
-      destination: Cesium.Cartesian3.fromDegrees(12.0, 20.0, 12_000_000),
-    });
-  })();
+          // Carica layer satellitare (assetId 2 = Bing Maps global imagery)
+          const provider = await Cesium.IonImageryProvider.fromAssetId(2);
+          viewer.imageryLayers.removeAll();
+          viewer.imageryLayers.addImageryProvider(provider);
+        }
+      } catch (err) {
+        console.error("Errore inizializzazione Cesium:", err);
+      }
+    };
 
-  return () => {
-    // @ts-ignore
-    if (viewer && !viewer.isDestroyed()) viewer.destroy();
-  };
-}, []);
+    initCesium();
 
+    // cleanup quando la pagina viene chiusa o ricaricata
+    return () => {
+      if (viewer && !viewer.isDestroyed()) viewer.destroy();
+    };
+  }, []);
+
+  return (
+    <div
+      ref={mapRef}
+      style={{
+        width: "100vw",
+        height: "100vh",
+        backgroundColor: "black",
+        overflow: "hidden",
+      }}
+    />
+  );
 }
-// ⬆️ FINE BLOCCO 6.3
+// ⬆️ FINE BLOCCO 9.2
