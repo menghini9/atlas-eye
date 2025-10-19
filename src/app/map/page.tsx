@@ -1,4 +1,4 @@
-// ⬇️ BLOCCO 11.2 — Atlas Eye Hybrid Pro (Ricerca + Stile + Luci notturne)
+// ⬇️ BLOCCO 11.3 — Atlas Eye Hybrid Ultra
 "use client";
 
 import { useEffect, useRef } from "react";
@@ -24,6 +24,7 @@ export default function MapPage() {
         Cartesian3,
         UrlTemplateImageryProvider,
         SunLight,
+        SceneMode,
       } = CesiumEngine;
       const { Viewer } = CesiumWidgets;
 
@@ -31,7 +32,7 @@ export default function MapPage() {
       Ion.defaultAccessToken = process.env.NEXT_PUBLIC_CESIUM_TOKEN || "";
       mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
-      // ✅ Cesium
+      // ✅ Inizializza Cesium
       viewer = new Viewer(cesiumRef.current!, {
         animation: false,
         timeline: false,
@@ -53,7 +54,7 @@ export default function MapPage() {
       viewer.scene.globe.enableLighting = true;
       viewer.scene.light = new SunLight();
 
-      // ✅ Layers Cesium
+      // ✅ Layers
       const satLayer = await IonImageryProvider.fromAssetId(2);
       const labelsLayer = await IonImageryProvider.fromAssetId(3);
       const nightLayer = new UrlTemplateImageryProvider({
@@ -67,24 +68,23 @@ export default function MapPage() {
       const night = viewer.imageryLayers.addImageryProvider(nightLayer);
       night.alpha = 0.0;
 
-      // ✅ Zoom limits (no troppo vicino o troppo lontano)
+      // ✅ Zoom limitato
       const ctrl = viewer.scene.screenSpaceCameraController;
       ctrl.minimumZoomDistance = 300000;
       ctrl.maximumZoomDistance = 25000000;
 
-      // ✅ Dynamic blending notte/giorno
+      // ✅ Transizione morbida giorno/notte + switch Mapbox
       viewer.scene.postRender.addEventListener(() => {
         const sun = viewer.scene.light?.direction;
         if (sun) {
-          const factor = Math.max(0, 1 - sun.z);
-          night.alpha = factor * 0.9; // 🌃 città che si accendono
+          const f = Math.max(0, 1 - sun.z);
+          night.alpha += ((f * 0.9) - night.alpha) * 0.05; // fade fluido
         }
-
         const h = viewer.camera.positionCartographic.height;
-        const cesium = cesiumRef.current!;
-        const mapbox = mapboxRef.current!;
-        cesium.style.display = h < 300000 ? "none" : "block";
-        mapbox.style.display = h < 300000 ? "block" : "none";
+        const c = cesiumRef.current!;
+        const m = mapboxRef.current!;
+        c.style.display = h < 300000 ? "none" : "block";
+        m.style.display = h < 300000 ? "block" : "none";
       });
 
       viewer.camera.flyTo({
@@ -103,14 +103,15 @@ export default function MapPage() {
         antialias: true,
       });
       map.addControl(new mapboxgl.NavigationControl());
-      map.addControl(new mapboxgl.ScaleControl());
+      map.addControl(new mapboxgl.FullscreenControl()); // 🌕 Schermo intero
       mapboxRef.current!.style.display = "none";
 
-      // ✅ 🔍 Barra di ricerca universale
-      const searchBox = document.createElement("input");
-      searchBox.type = "text";
-      searchBox.placeholder = "Cerca un luogo...";
-      Object.assign(searchBox.style, {
+      // ✅ Ricerca
+      const search = document.createElement("input");
+      Object.assign(search, {
+        placeholder: "Cerca luogo...",
+      });
+      Object.assign(search.style, {
         position: "absolute",
         top: "20px",
         left: "50%",
@@ -124,21 +125,20 @@ export default function MapPage() {
         fontSize: "14px",
         zIndex: "1000",
       });
-      document.body.appendChild(searchBox);
+      document.body.appendChild(search);
 
-      searchBox.addEventListener("keydown", async (e) => {
+      search.addEventListener("keydown", async (e: any) => {
         if (e.key === "Enter") {
-          const query = searchBox.value.trim();
-          if (!query) return;
-          const resp = await fetch(
+          const q = search.value.trim();
+          if (!q) return;
+          const r = await fetch(
             `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
-              query
+              q
             )}.json?access_token=${mapboxgl.accessToken}`
           );
-          const data = await resp.json();
-          const place = data.features?.[0];
+          const d = await r.json();
+          const place = d.features?.[0];
           if (!place) return;
-
           const [lon, lat] = place.center;
           if (mapboxRef.current!.style.display === "block") {
             map.flyTo({ center: [lon, lat], zoom: 6 });
@@ -151,7 +151,7 @@ export default function MapPage() {
         }
       });
 
-      // ✅ 🗺 Selettore stile
+      // ✅ Selettore stile (solo Satellite / Ibrido)
       const styleBox = document.createElement("div");
       Object.assign(styleBox.style, {
         position: "absolute",
@@ -163,30 +163,22 @@ export default function MapPage() {
         color: "#fff",
         zIndex: "1000",
         fontSize: "13px",
-        userSelect: "none",
       });
       styleBox.innerHTML = `
         <b>Stile:</b>
         <select id="mapStyle" style="margin-left:6px;padding:2px 5px;border-radius:6px;background:#111;color:#fff;">
           <option value="satellite">Satellite</option>
-          <option value="road">Cartina</option>
-          <option value="hybrid">Ibrida</option>
+          <option value="hybrid" selected>Ibrida</option>
         </select>
       `;
       document.body.appendChild(styleBox);
 
-      const styleSelect = document.getElementById("mapStyle") as HTMLSelectElement;
-      styleSelect.addEventListener("change", async () => {
-        const val = styleSelect.value;
+      const styleSel = document.getElementById("mapStyle") as HTMLSelectElement;
+      styleSel.addEventListener("change", async () => {
+        const v = styleSel.value;
         viewer.imageryLayers.removeAll();
-        if (val === "satellite") {
+        if (v === "satellite") {
           viewer.imageryLayers.addImageryProvider(satLayer);
-        } else if (val === "road") {
-          const osm = new UrlTemplateImageryProvider({
-            url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-            credit: "© OpenStreetMap",
-          });
-          viewer.imageryLayers.addImageryProvider(osm);
         } else {
           viewer.imageryLayers.addImageryProvider(satLayer);
           viewer.imageryLayers.addImageryProvider(labelsLayer);
@@ -194,15 +186,44 @@ export default function MapPage() {
         viewer.imageryLayers.addImageryProvider(nightLayer);
 
         map.setStyle(
-          val === "satellite"
+          v === "satellite"
             ? "mapbox://styles/mapbox/satellite-v9"
-            : val === "road"
-            ? "mapbox://styles/mapbox/streets-v12"
             : "mapbox://styles/mapbox/satellite-streets-v12"
         );
       });
 
-      console.log("🌍 Atlas Eye Hybrid Pro attivo.");
+      // ✅ Controllo vista (sferica / piatta)
+      const viewBox = document.createElement("div");
+      Object.assign(viewBox.style, {
+        position: "absolute",
+        top: "20px",
+        left: "20px",
+        background: "rgba(10,10,20,0.8)",
+        padding: "6px 10px",
+        borderRadius: "8px",
+        color: "#fff",
+        zIndex: "1000",
+        fontSize: "13px",
+      });
+      viewBox.innerHTML = `
+        <b>Vista:</b>
+        <select id="viewMode" style="margin-left:6px;padding:2px 5px;border-radius:6px;background:#111;color:#fff;">
+          <option value="globe">Globo</option>
+          <option value="flat">Atlante</option>
+        </select>
+      `;
+      document.body.appendChild(viewBox);
+
+      const viewSel = document.getElementById("viewMode") as HTMLSelectElement;
+      viewSel.addEventListener("change", () => {
+        if (viewSel.value === "flat") {
+          viewer.scene.mode = SceneMode.SCENE2D; // vista piatta
+        } else {
+          viewer.scene.mode = SceneMode.SCENE3D; // globo
+        }
+      });
+
+      console.log("🌍 Atlas Eye Hybrid Ultra attivo");
     };
 
     init();
@@ -215,17 +236,9 @@ export default function MapPage() {
 
   return (
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden" }}>
-      <div
-        id="cesiumContainer"
-        ref={cesiumRef}
-        style={{ position: "absolute", inset: 0 }}
-      />
-      <div
-        id="mapboxContainer"
-        ref={mapboxRef}
-        style={{ position: "absolute", inset: 0 }}
-      />
+      <div ref={cesiumRef} style={{ position: "absolute", inset: 0 }} />
+      <div ref={mapboxRef} style={{ position: "absolute", inset: 0 }} />
     </div>
   );
 }
-// ⬆️ FINE BLOCCO 11.2
+// ⬆️ FINE BLOCCO 11.3
