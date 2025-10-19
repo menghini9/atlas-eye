@@ -17,7 +17,7 @@ export default function MapPage() {
 
         // Imposta token e path base
         (Engine as any).Ion.defaultAccessToken =
-          process.env.NEXT_PUBLIC_CESIUM_TOKEN || "";
+        process.env.NEXT_PUBLIC_CESIUM_TOKEN || "";
         (window as any).CESIUM_BASE_URL = "/cesium";
 
         // Usa Viewer dal namespace corretto
