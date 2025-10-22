@@ -1,11 +1,11 @@
-// ⬇️ BLOCCO 5.1 — ProfilePage (pagina profilo + collegamento mappa)
+// ⬇️ BLOCCO 5.2 — ProfilePage (profilo + collegamenti modalità mappa + overlay)
 "use client";
+
 import { useRouter } from "next/navigation";
 import { signOut } from "firebase/auth";
-import { auth } from "../lib/authClient"; // <--- percorso corretto
+import { auth } from "../lib/authClient";
 import { useEffect, useState } from "react";
 
-// 🌌 ProfilePage base – Atlas Eye
 export default function ProfilePage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
@@ -22,19 +22,31 @@ export default function ProfilePage() {
   }, [router]);
 
   const handleLogout = async () => {
-    await signOut(auth);
-    router.push("/login");
+    try {
+      window.AtlasOverlay?.show("Uscita in corso...");
+      await signOut(auth);
+      setTimeout(() => router.push("/login"), 600);
+    } catch {
+      alert("Errore durante il logout.");
+    } finally {
+      window.AtlasOverlay?.hide();
+    }
   };
 
-  const goToMap = () => {
-    router.push("/map");
+  const goToMap = (mode?: string) => {
+    // Modalità opzionale (globe, flat, hybrid)
+    window.AtlasOverlay?.show("Caricamento mappa...");
+    setTimeout(() => {
+      router.push("/map" + (mode ? `?view=${mode}` : ""));
+      window.AtlasOverlay?.hide();
+    }, 500);
   };
 
   return (
     <div
       style={{
         background:
-          "linear-gradient(180deg, #001f3f 0%, #004080 60%, #0074D9 100%)",
+          "linear-gradient(180deg, #000814 0%, #001d3d 50%, #003566 100%)",
         minHeight: "100vh",
         color: "white",
         display: "flex",
@@ -43,56 +55,111 @@ export default function ProfilePage() {
         justifyContent: "center",
         textAlign: "center",
         padding: "20px",
+        overflow: "hidden",
       }}
     >
-      <h1 style={{ fontSize: "2rem", marginBottom: "20px" }}>
+      <h1 style={{ fontSize: "2.2rem", marginBottom: "18px" }}>
         👤 Profilo Atlas Eye
       </h1>
 
       {user ? (
         <>
-          <p>Email: {user.email}</p>
-          <p>UID: {user.uid}</p>
-          <p>Livello: Free Explorer 🌍</p>
+          <div style={{ marginBottom: "25px", lineHeight: "1.5" }}>
+            <p>Email: {user.email}</p>
+            <p>ID Utente: {user.uid.slice(0, 8)}...</p>
+            <p>Livello: 🌍 Free Explorer</p>
+          </div>
 
-          <button
-            onClick={goToMap}
+          {/* 🌐 Modalità di visualizzazione */}
+          <div
             style={{
-              marginTop: "30px",
-              padding: "12px 24px",
-              backgroundColor: "#00aaff",
-              border: "none",
-              borderRadius: "12px",
-              color: "white",
-              fontSize: "1rem",
-              cursor: "pointer",
-              transition: "0.3s",
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px",
+              marginBottom: "28px",
+              width: "min(90%, 320px)",
             }}
           >
-            🌎 Vai alla Mappa
+            <button
+              onClick={() => goToMap("globe")}
+              style={{
+                backgroundColor: "#0077ff",
+                border: "none",
+                borderRadius: "12px",
+                padding: "12px 18px",
+                fontSize: "1rem",
+                cursor: "pointer",
+              }}
+            >
+              🌏 Modalità Globo
+            </button>
+
+            <button
+              onClick={() => goToMap("flat")}
+              style={{
+                backgroundColor: "#0099cc",
+                border: "none",
+                borderRadius: "12px",
+                padding: "12px 18px",
+                fontSize: "1rem",
+                cursor: "pointer",
+              }}
+            >
+              🗺️ Modalità Atlante
+            </button>
+
+            <button
+              onClick={() => goToMap("hybrid")}
+              style={{
+                backgroundColor: "#00b37a",
+                border: "none",
+                borderRadius: "12px",
+                padding: "12px 18px",
+                fontSize: "1rem",
+                cursor: "pointer",
+              }}
+            >
+              ⚡ Modalità Ibrida
+            </button>
+          </div>
+
+          {/* 🔧 Pulsante impostazioni (placeholder per futura sezione) */}
+          <button
+            style={{
+              backgroundColor: "rgba(255, 255, 255, 0.15)",
+              border: "1px solid rgba(255, 255, 255, 0.25)",
+              borderRadius: "12px",
+              padding: "10px 18px",
+              fontSize: "1rem",
+              marginBottom: "20px",
+              cursor: "pointer",
+            }}
+            onClick={() => alert("Impostazioni in arrivo ⚙️")}
+          >
+            ⚙️ Impostazioni
           </button>
 
+          {/* 🚪 Logout */}
           <button
             onClick={handleLogout}
             style={{
-              marginTop: "15px",
-              padding: "10px 20px",
-              backgroundColor: "#ff4444",
+              backgroundColor: "#ff3333",
               border: "none",
               borderRadius: "12px",
-              color: "white",
+              padding: "10px 20px",
               fontSize: "1rem",
               cursor: "pointer",
-              transition: "0.3s",
             }}
           >
             🚪 Esci
           </button>
         </>
       ) : (
-        <p>Caricamento profilo...</p>
+        <p style={{ fontSize: "1rem", marginTop: "20px" }}>
+          Caricamento profilo...
+        </p>
       )}
     </div>
   );
 }
-// ⬆️ FINE BLOCCO 5.1
+// ⬆️ FINE BLOCCO 5.2

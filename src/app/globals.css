@@ -1,10 +1,26 @@
+/* ⬇️ BLOCCO 10.8 — Atlas Eye Global Style (dark theme + fluid overlay) */
+
 @import "tailwindcss";
 
+/* 🎨 Variabili base (tema Atlas Eye) */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #05070b; /* blu notte profondo */
+  --foreground: #f0f0f0; /* bianco neutro */
+  --accent: #0074ff; /* blu spaziale */
+  --accent-gold: #d4a017; /* oro tenue per dettagli */
+  --overlay-bg: rgba(5, 8, 15, 0.9);
+  --transition-fast: 0.25s ease;
 }
 
+/* 🌒 Tema scuro (default per Atlas Eye) */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #05070b;
+    --foreground: #eaeaea;
+  }
+}
+
+/* 🧩 Mappa colori per Tailwind */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -12,15 +28,73 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* 🌍 Corpo generale */
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+/* ⚡️ Transizioni globali */
+* {
+  box-sizing: border-box;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+/* 🟦 Pulsanti generici coerenti con lo stile Atlas Eye */
+button {
+  background: rgba(20, 25, 40, 0.9);
+  color: var(--foreground);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  cursor: pointer;
+  padding: 6px 12px;
+  font-size: 0.9rem;
+  transition: background var(--transition-fast), transform var(--transition-fast);
+}
+
+button:hover {
+  background: rgba(30, 35, 60, 0.95);
+  transform: scale(1.03);
+}
+
+/* ✨ Overlay globale (ripreso da layout.tsx) */
+#global-overlay {
+  background: var(--overlay-bg);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  color: var(--foreground);
+  font-size: 1.1rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  backdrop-filter: blur(4px);
+  animation: fadeIn 0.3s ease forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* 📱 Ottimizzazioni smartphone */
+@media (max-width: 768px) {
+  html, body {
+    font-size: 15px;
+  }
+  button {
+    font-size: 0.85rem;
+    padding: 5px 10px;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-}
+/* ⬆️ FINE BLOCCO 10.8 */

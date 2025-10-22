@@ -9,14 +9,9 @@
   "env": {
     "VERCEL_ENV": "production"
   },
-  "redirects": [
-    {
-      "source": "/:path*",
-      "has": [
-        { "type": "host", "value": "atlas-*vercel.app" }
-      ],
-      "destination": "https://atlas-eye.vercel.app/:path*",
-      "permanent": true
-    }
-  ]
+  "framework": "nextjs",
+  "regions": ["fra1"],
+  "github": {
+    "enabled": true
+  }
 }
