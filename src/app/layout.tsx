@@ -28,6 +28,8 @@ export default function RootLayout({
   return (
     <html lang="it">
       <head>
+        <script src="/preload.js" async></script>
+
         {/* ✅ Import CSS Cesium */}
         <link rel="stylesheet" href="/cesium/Widgets/widgets.css" />
 

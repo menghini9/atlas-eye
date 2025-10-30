@@ -1,4 +1,4 @@
-// ⬇️ BLOCCO 12.1 — Atlas Eye (Atlante + Luci dinamiche + Keyboard Zoom + Help + Toggle Luci)
+// ⬇️ BLOCCO 12.2 — Atlas Eye (Full Performance + Overlay + Precaricamento + Fix Esri)
 "use client";
 
 import { useEffect, useRef } from "react";
@@ -18,21 +18,40 @@ export default function MapPage() {
     let inMapbox = false;
     let switching = false;
 
+    // ⚡️ Overlay immediato (prima che parta tutto)
+    const overlay = document.createElement("div");
+    overlay.id = "atlas-loader";
+    overlay.style.cssText =
+      "position:fixed;inset:0;display:grid;place-items:center;background:#000;" +
+      "color:#fff;font:600 16px system-ui;letter-spacing:.5px;z-index:9999;opacity:1;transition:opacity .5s;";
+    overlay.innerHTML = `<div style='text-align:center'>
+        <div style="font-size:18px;margin-bottom:8px;">🛰️ Atlas Eye</div>
+        <div style="font-size:13px;">Caricamento in corso...</div>
+      </div>`;
+    document.body.appendChild(overlay);
+
     const init = async () => {
-      // ✅ Import dinamico Cesium
+      // ✅ Token caricati da localStorage se disponibili
+      const mapToken =
+        localStorage.getItem("mapbox_token") || process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
+      const cesiumToken =
+        localStorage.getItem("cesium_token") || process.env.NEXT_PUBLIC_CESIUM_TOKEN || "";
+      mapboxgl.accessToken = mapToken;
+
+      // ✅ Caricamento Cesium.js (se non già in cache)
       let Cesium: any;
       try {
         if (typeof window !== "undefined") {
           if (!(window as any).Cesium) {
             await new Promise((resolve, reject) => {
-              const script = document.createElement("script");
-              script.src = "/cesium/Cesium.js";
-              script.async = true;
-              script.onload = () => resolve(true);
-              script.onerror = reject;
-              document.head.appendChild(script);
+              const s = document.createElement("script");
+              s.src = "/cesium/Cesium.js";
+              s.async = true;
+              s.onload = () => resolve(true);
+              s.onerror = reject;
+              document.head.appendChild(s);
             });
-            console.log("🛰 Cesium.js caricato nel browser");
+            console.log("🛰 Cesium.js caricato");
           }
           Cesium = (window as any).Cesium;
         } else {
@@ -41,15 +60,13 @@ export default function MapPage() {
         }
       } catch (err) {
         console.error("❌ Errore Cesium:", err);
-        Cesium = {};
+        return;
       }
 
-      // ✅ Configurazioni
       (window as any).CESIUM_BASE_URL = "/cesium";
-      Cesium.Ion.defaultAccessToken = process.env.NEXT_PUBLIC_CESIUM_TOKEN || "";
-      mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
+      Cesium.Ion.defaultAccessToken = cesiumToken;
 
-      // ✅ Viewer Cesium
+      // ✅ Viewer Cesium (ottimizzato)
       viewer = new Cesium.Viewer(cesiumRef.current!, {
         animation: false,
         timeline: false,
@@ -63,24 +80,27 @@ export default function MapPage() {
         selectionIndicator: false,
         creditContainer: document.createElement("div"),
         terrainProvider: await Cesium.createWorldTerrainAsync(),
+        requestRenderMode: true,
+        targetFrameRate: 60,
       });
 
       viewer.scene.backgroundColor = Cesium.Color.BLACK;
       viewer.scene.skyAtmosphere = new Cesium.SkyAtmosphere();
       viewer.scene.globe.enableLighting = true;
       viewer.scene.globe.depthTestAgainstTerrain = true;
+      viewer.scene.globe.showGroundAtmosphere = false; // ⚡ ottimizzazione
 
-      // ✅ Layer base
+      // ✅ Layer base + labels
       const sat = await Cesium.IonImageryProvider.fromAssetId(2);
       const labels = await Cesium.IonImageryProvider.fromAssetId(3);
       viewer.imageryLayers.removeAll();
       viewer.imageryLayers.addImageryProvider(sat);
       const labelsLayer = viewer.imageryLayers.addImageryProvider(labels);
 
-      // 🌃 Luci urbane dinamiche (reali e solo lato notte)
+      // 🌃 Luci urbane dinamiche (fix Esri)
       const nightProvider = new Cesium.UrlTemplateImageryProvider({
-        url: "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_CityLights_2012/default/2012-01-01/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg",
-        credit: "NASA City Lights",
+        url: "https://tiles.arcgis.com/tiles/P3ePLMYs2RVChkJx/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        credit: "Esri World Imagery (night simulation)",
       });
       const nightLayer = viewer.imageryLayers.addImageryProvider(nightProvider);
       nightLayer.alpha = 0.0;
@@ -108,10 +128,17 @@ export default function MapPage() {
       ctrl.minimumZoomDistance = 300_000;
       ctrl.maximumZoomDistance = 20_000_000;
 
-      // ✅ Posizione iniziale
-      viewer.camera.flyTo({
+      // ✅ Avvio immediato
+      await new Promise((resolve) => {
+  const checkReady = () => {
+    if (viewer.scene.globe.tilesLoaded) resolve(true);
+    else requestAnimationFrame(checkReady);
+  };
+  checkReady();
+});
+
+      viewer.camera.setView({
         destination: Cesium.Cartesian3.fromDegrees(12.5, 41.9, 2_500_000),
-        duration: 1.8,
       });
 
       // ✅ Mapbox
@@ -149,12 +176,11 @@ export default function MapPage() {
       };
       raf = requestAnimationFrame(watchHeight);
 
-      // 🧭 Interfaccia
+      // ✅ UI
       const ui = uiRef.current!;
       ui.innerHTML = `
-        <div id="atlas-ui" style="
-          position:absolute;top:0;left:0;right:0;
-          padding:20px;display:flex;justify-content:space-between;align-items:flex-start;z-index:1000;">
+        <div id="atlas-ui" style="position:absolute;top:0;left:0;right:0;padding:20px;
+          display:flex;justify-content:space-between;align-items:flex-start;z-index:1000;">
           <div style="display:flex;gap:10px;align-items:center;">
             <div style="background:rgba(10,10,20,0.8);padding:6px 10px;border-radius:8px;color:white;">
               <b>Vista:</b>
@@ -182,8 +208,7 @@ export default function MapPage() {
               padding:6px 10px;font-size:16px;cursor:pointer;">⛶</button>
           </div>
         </div>
-        <div id="helpPanel" style="
-          position:absolute;top:64px;left:20px;max-width:360px;
+        <div id="helpPanel" style="position:absolute;top:64px;left:20px;max-width:360px;
           background:rgba(10,10,15,0.95);color:#fff;border:1px solid #333;border-radius:10px;
           padding:12px 14px;z-index:1001;display:none;font-size:14px;line-height:1.45;">
           <b>Istruzioni</b><br/>
@@ -195,7 +220,6 @@ export default function MapPage() {
         </div>
       `;
 
-      // Pulsanti UI
       const helpPanel = ui.querySelector<HTMLDivElement>("#helpPanel")!;
       ui.querySelector<HTMLButtonElement>("#help")!.onclick = () => {
         helpPanel.style.display = helpPanel.style.display === "none" ? "block" : "none";
@@ -209,50 +233,7 @@ export default function MapPage() {
         nightLayer.alpha = lightsOn ? 0.7 : 0.0;
       };
 
-      // Cambio stile
-      ui.querySelector<HTMLSelectElement>("#styleMode")!.onchange = (e: any) => {
-        const v = e.target.value;
-        viewer.imageryLayers.remove(labelsLayer);
-        if (v === "hybrid") viewer.imageryLayers.addImageryProvider(labels);
-      };
-
-      // 🔘 Cambio vista Globo ↔ Atlante
-      ui.querySelector<HTMLSelectElement>("#viewMode")!.onchange = (e: any) => {
-        const mode = e.target.value;
-        const ctrl = viewer.scene.screenSpaceCameraController;
-
-        if (mode === "flat") {
-          viewer.scene.morphTo2D(1);
-          const once = () => {
-            viewer.scene.morphComplete.removeEventListener(once);
-            const world = Cesium.Rectangle.fromDegrees(-180, -85, 180, 85);
-            viewer.camera.setView({ destination: world });
-            ctrl.enableRotate = false;
-            ctrl.enableTilt = false;
-            ctrl.enableTranslate = false;
-            ctrl.enableZoom = true;
-            ctrl.minimumZoomDistance = 10_000_000;
-            ctrl.maximumZoomDistance = 40_000_000;
-            viewer.scene.skyAtmosphere.show = false;
-          };
-          viewer.scene.morphComplete.addEventListener(once);
-        } else {
-          viewer.scene.morphTo3D(1);
-          const once = () => {
-            viewer.scene.morphComplete.removeEventListener(once);
-            ctrl.enableRotate = true;
-            ctrl.enableTilt = true;
-            ctrl.enableTranslate = true;
-            ctrl.enableZoom = true;
-            ctrl.minimumZoomDistance = 300_000;
-            ctrl.maximumZoomDistance = 20_000_000;
-            viewer.scene.skyAtmosphere.show = true;
-          };
-          viewer.scene.morphComplete.addEventListener(once);
-        }
-      };
-
-      // 🔍 Ricerca suggerimenti
+      // ✅ Ricerca + Zoom tastiera (invariati)
       const search = ui.querySelector("#search")! as HTMLInputElement;
       const suggestions = document.createElement("div");
       suggestions.id = "suggestions";
@@ -284,10 +265,11 @@ export default function MapPage() {
             const coords = JSON.parse((ev.target as HTMLElement).dataset.coords!);
             const [lon, lat] = coords;
             if (inMapbox && map) map.flyTo({ center: [lon, lat], zoom: 6 });
-            else viewer.camera.flyTo({
-              destination: Cesium.Cartesian3.fromDegrees(lon, lat, 1_000_000),
-              duration: 1.5,
-            });
+            else
+              viewer.camera.flyTo({
+                destination: Cesium.Cartesian3.fromDegrees(lon, lat, 1_000_000),
+                duration: 1.5,
+              });
             search.value = (ev.target as HTMLElement).textContent || "";
             suggestions.style.display = "none";
           })
@@ -306,7 +288,7 @@ export default function MapPage() {
           suggestions.style.display = "none";
       });
 
-      // ⌨️ Zoom tastiera con limiti e direzione corretta
+      // ⌨️ Zoom tastiera
       const keyZoom = (dir: "in" | "out") => {
         const h = viewer.camera.positionCartographic.height;
         const step = dir === "in" ? -400_000 : 400_000;
@@ -322,9 +304,12 @@ export default function MapPage() {
         if (["ArrowDown", "-"].includes(e.key)) keyZoom("out");
       });
 
+      // 🟢 Fine overlay
+      overlay.style.opacity = "0";
+      setTimeout(() => overlay.remove(), 700);
+
       // Cleanup
       return () => {
-        if (raf) cancelAnimationFrame(raf);
         if (map) map.remove();
         if (viewer && !viewer.isDestroyed()) viewer.destroy();
       };
@@ -341,4 +326,4 @@ export default function MapPage() {
     </div>
   );
 }
-// ⬆️ FINE BLOCCO 12.1
+// ⬆️ FINE BLOCCO 12.2  questo è il codice attuale

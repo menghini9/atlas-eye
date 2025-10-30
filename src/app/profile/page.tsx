@@ -1,4 +1,4 @@
-// ⬇️ BLOCCO 5.2 — ProfilePage (profilo + collegamenti modalità mappa + overlay)
+// ⬇️ BLOCCO 5.3 — ProfilePage (Fast Transition + Cesium Preload)
 "use client";
 
 import { useRouter } from "next/navigation";
@@ -10,37 +10,78 @@ export default function ProfilePage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
 
+  // ✅ Controllo autenticazione
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((currentUser) => {
-      if (!currentUser) {
-        router.push("/login");
-      } else {
-        setUser(currentUser);
-      }
+      if (!currentUser) router.push("/login");
+      else setUser(currentUser);
     });
     return () => unsubscribe();
   }, [router]);
 
+  // ⚡️ Precarica Cesium.js e salva i token
+  useEffect(() => {
+    const preload = () => {
+      // Salva token in cache locale (una sola volta)
+      if (!localStorage.getItem("mapbox_token")) {
+        localStorage.setItem(
+          "mapbox_token",
+          process.env.NEXT_PUBLIC_MAPBOX_TOKEN || ""
+        );
+      }
+      if (!localStorage.getItem("cesium_token")) {
+        localStorage.setItem(
+          "cesium_token",
+          process.env.NEXT_PUBLIC_CESIUM_TOKEN || ""
+        );
+      }
+      // Precarica Cesium.js silenziosamente
+      if (!document.getElementById("cesium-preload")) {
+        const s = document.createElement("script");
+        s.src = "/cesium/Cesium.js";
+        s.async = true;
+        s.id = "cesium-preload";
+        document.head.appendChild(s);
+      }
+    };
+    preload();
+  }, []);
+
+  // ✅ Logout con overlay
   const handleLogout = async () => {
+    const overlay = showOverlay("Uscita in corso...");
     try {
-      window.AtlasOverlay?.show("Uscita in corso...");
       await signOut(auth);
-      setTimeout(() => router.push("/login"), 600);
+      setTimeout(() => router.push("/login"), 500);
     } catch {
       alert("Errore durante il logout.");
     } finally {
-      window.AtlasOverlay?.hide();
+      hideOverlay(overlay);
     }
   };
 
-  const goToMap = (mode?: string) => {
-    // Modalità opzionale (globe, flat, hybrid)
-    window.AtlasOverlay?.show("Caricamento mappa...");
+  // ✅ Accesso rapido alla mappa
+  const goToMap = () => {
+    const overlay = showOverlay("Caricamento mappa...");
     setTimeout(() => {
-      router.push("/map" + (mode ? `?view=${mode}` : ""));
-      window.AtlasOverlay?.hide();
-    }, 500);
+      router.push("/map");
+      hideOverlay(overlay);
+    }, 300);
   };
+
+  // 🔹 Overlay semplice e riutilizzabile
+  function showOverlay(text: string) {
+    const o = document.createElement("div");
+    o.style.cssText =
+      "position:fixed;inset:0;display:grid;place-items:center;" +
+      "background:black;color:white;z-index:9999;font:600 15px system-ui;";
+    o.textContent = text;
+    document.body.appendChild(o);
+    return o;
+  }
+  function hideOverlay(el: HTMLElement) {
+    setTimeout(() => el.remove(), 500);
+  }
 
   return (
     <div
@@ -55,7 +96,6 @@ export default function ProfilePage() {
         justifyContent: "center",
         textAlign: "center",
         padding: "20px",
-        overflow: "hidden",
       }}
     >
       <h1 style={{ fontSize: "2.2rem", marginBottom: "18px" }}>
@@ -70,73 +110,20 @@ export default function ProfilePage() {
             <p>Livello: 🌍 Free Explorer</p>
           </div>
 
-          {/* 🌐 Modalità di visualizzazione */}
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "12px",
-              marginBottom: "28px",
-              width: "min(90%, 320px)",
-            }}
-          >
-            <button
-              onClick={() => goToMap("globe")}
-              style={{
-                backgroundColor: "#0077ff",
-                border: "none",
-                borderRadius: "12px",
-                padding: "12px 18px",
-                fontSize: "1rem",
-                cursor: "pointer",
-              }}
-            >
-              🌏 Modalità Globo
-            </button>
-
-            <button
-              onClick={() => goToMap("flat")}
-              style={{
-                backgroundColor: "#0099cc",
-                border: "none",
-                borderRadius: "12px",
-                padding: "12px 18px",
-                fontSize: "1rem",
-                cursor: "pointer",
-              }}
-            >
-              🗺️ Modalità Atlante
-            </button>
-
-            <button
-              onClick={() => goToMap("hybrid")}
-              style={{
-                backgroundColor: "#00b37a",
-                border: "none",
-                borderRadius: "12px",
-                padding: "12px 18px",
-                fontSize: "1rem",
-                cursor: "pointer",
-              }}
-            >
-              ⚡ Modalità Ibrida
-            </button>
-          </div>
-
-          {/* 🔧 Pulsante impostazioni (placeholder per futura sezione) */}
+          {/* 🌎 Unico pulsante mappa */}
           <button
+            onClick={goToMap}
             style={{
-              backgroundColor: "rgba(255, 255, 255, 0.15)",
-              border: "1px solid rgba(255, 255, 255, 0.25)",
+              backgroundColor: "#0077ff",
+              border: "none",
               borderRadius: "12px",
-              padding: "10px 18px",
-              fontSize: "1rem",
-              marginBottom: "20px",
+              padding: "14px 24px",
+              fontSize: "1.05rem",
               cursor: "pointer",
+              marginBottom: "22px",
             }}
-            onClick={() => alert("Impostazioni in arrivo ⚙️")}
           >
-            ⚙️ Impostazioni
+            🌎 Entra nella Mappa
           </button>
 
           {/* 🚪 Logout */}
@@ -162,4 +149,4 @@ export default function ProfilePage() {
     </div>
   );
 }
-// ⬆️ FINE BLOCCO 5.2
+// ⬆️ FINE BLOCCO 5.3
